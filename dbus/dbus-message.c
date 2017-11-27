@@ -5093,7 +5093,7 @@ dbus_message_demarshal (const char *str,
                         int         len,
                         DBusError  *error)
 {
-  DBusMessageLoader *loader;
+  DBusMessageLoader *loader = NULL;
   DBusString *buffer;
   DBusMessage *msg;
 
@@ -5102,7 +5102,7 @@ dbus_message_demarshal (const char *str,
   loader = _dbus_message_loader_new ();
 
   if (loader == NULL)
-    return NULL;
+    goto fail_oom;
 
   _dbus_message_loader_get_buffer (loader, &buffer, NULL, NULL);
 
@@ -5133,7 +5133,10 @@ dbus_message_demarshal (const char *str,
 
  fail_oom:
   _DBUS_SET_OOM (error);
-  _dbus_message_loader_unref (loader);
+
+  if (loader != NULL)
+    _dbus_message_loader_unref (loader);
+
   return NULL;
 }
 
