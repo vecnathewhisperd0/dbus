@@ -315,6 +315,25 @@ update_desktop_file_entry (BusActivation       *activation,
                                     error))
     goto out;
 
+  if (!dbus_validate_bus_name (name, error))
+    goto out;
+
+  if (name[0] == ':')
+    {
+      dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                      "Bus name \"%s\" cannot be activatable because it "
+                      "starts with ':'", name);
+      goto out;
+    }
+
+  if (strcmp (name, DBUS_SERVICE_DBUS) == 0)
+    {
+      dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                      "Bus name \"%s\" cannot be activatable because it "
+                      "is reserved for the message bus", name);
+      goto out;
+    }
+
   if (!bus_desktop_file_get_string (desktop_file,
                                     DBUS_SERVICE_SECTION,
                                     DBUS_SERVICE_EXEC,
@@ -2816,6 +2835,54 @@ bus_activation_service_reload_test (const char *test_data_dir_cstr)
 out:
   _dbus_string_free (&directory);
   return ret;
+}
+
+/*
+ * The real implementation of bus_dispatch_test_bad_services(), called
+ * by bus_context_new_test(). This asserts that various invalid service
+ * files in the <servicedir> configured by
+ * bus_dispatch_test_bad_services() didn't get loaded into self->entries.
+ */
+void
+bus_activation_check_services (BusActivation *self)
+{
+  DBusHashIter iter;
+
+  _dbus_hash_iter_init (self->entries, &iter);
+
+  while (_dbus_hash_iter_next (&iter))
+    {
+      const char *k;
+      BusActivationEntry *v;
+
+      k = _dbus_hash_iter_get_string_key (&iter);
+      v = _dbus_hash_iter_get_value (&iter);
+
+      if (k[0] == '\0')
+        _dbus_test_fatal ("Empty service name found");
+
+      if (k[0] == ':')
+        _dbus_test_fatal ("Service name \"%s\" is a unique name", k);
+
+      if (strcmp (k, DBUS_SERVICE_DBUS) == 0)
+        _dbus_test_fatal ("dbus-daemon's service name found");
+
+      if (strcmp (k, v->name) != 0)
+        _dbus_test_fatal ("Mismatched service name found");
+
+      if (!dbus_validate_bus_name (k, NULL))
+        _dbus_test_fatal ("Service name \"%s\" is invalid", k);
+    }
+
+  _dbus_assert (
+      _dbus_hash_table_lookup_string (self->entries, ":2.1") == NULL);
+  _dbus_assert (
+      _dbus_hash_table_lookup_string (self->entries, "?!") == NULL);
+  _dbus_assert (
+      _dbus_hash_table_lookup_string (self->entries, "") == NULL);
+  _dbus_assert (
+      _dbus_hash_table_lookup_string (self->entries,
+                                      DBUS_SERVICE_DBUS) == NULL);
 }
 
 #endif /* DBUS_ENABLE_EMBEDDED_TESTS */

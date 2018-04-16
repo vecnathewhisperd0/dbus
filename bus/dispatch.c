@@ -4970,6 +4970,37 @@ bus_dispatch_test_conf (const DBusString *test_data_dir,
 }
 #endif
 
+/*
+ * Check that various invalid service files listed in a <servicedir>
+ * configured by filename didn't get loaded. This currently tests
+ * invalid values for Name.
+ */
+static dbus_bool_t
+bus_dispatch_test_bad_services (const DBusString *test_data_dir,
+                                const char       *filename)
+{
+  BusContext *context;
+
+  _dbus_test_diag ("%s:%s...", _DBUS_FUNCTION_NAME, filename);
+
+  context = bus_context_new_test (test_data_dir, filename);
+
+  if (context == NULL)
+    {
+      _dbus_test_not_ok ("%s:%s - bus_context_new_test() failed",
+          _DBUS_FUNCTION_NAME, filename);
+      return FALSE;
+    }
+
+  /* All the real testing for these services is done when
+   * bus_context_new_test() calls bus_activation_check_services () */
+
+  bus_context_unref (context);
+
+  _dbus_test_ok ("%s:%s", _DBUS_FUNCTION_NAME, filename);
+  return TRUE;
+}
+
 #if defined(ENABLE_TRADITIONAL_ACTIVATION) && !defined(DBUS_WIN)
 static dbus_bool_t
 bus_dispatch_test_conf_fail (const DBusString *test_data_dir,
@@ -5048,6 +5079,11 @@ bus_dispatch_test (const char *test_data_dir_cstr)
   _dbus_verbose ("Normal activation tests\n");
   if (!bus_dispatch_test_conf (&test_data_dir,
   			       "valid-config-files/debug-allow-all.conf", FALSE))
+    return FALSE;
+
+  /* run select launch-helper activation tests on broken service files */
+  if (!bus_dispatch_test_bad_services (&test_data_dir,
+                                       "valid-config-files/debug-allow-all-fail.conf"))
     return FALSE;
 
 #ifndef DBUS_WIN
