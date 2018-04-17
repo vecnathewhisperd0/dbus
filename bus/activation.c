@@ -27,6 +27,7 @@
 #include "activation.h"
 #include "activation-exit-codes.h"
 #include "config-parser.h"
+#include "containers.h"
 #include "desktop-file.h"
 #include "dispatch.h"
 #include "services.h"
@@ -1313,7 +1314,8 @@ bus_activation_send_pending_auto_activation_messages (BusActivation  *activation
           if (!bus_dispatch_matches (transaction,
                                      entry->connection,
                                      addressed_recipient,
-                                     entry->activation_message, &error))
+                                     entry->activation_message,
+                                     NULL, NULL, &error))
             {
               /* If permission is denied, we just want to return the error
                * to the original method invoker; in particular, we don't
@@ -1853,6 +1855,10 @@ bus_activation_activate_service (BusActivation  *activation,
 
   limit = bus_context_get_max_pending_activations (activation->context);
 
+  if (connection != NULL &&
+      !bus_containers_check_can_activate (connection, service_name, error))
+    return FALSE;
+
   if (activation->n_pending_activations >= limit)
     {
       dbus_set_error (error, DBUS_ERROR_LIMITS_EXCEEDED,
@@ -2176,7 +2182,8 @@ bus_activation_activate_service (BusActivation  *activation,
                                bus_connection_get_loginfo (connection));
               /* Wonderful, systemd is connected, let's just send the msg */
               retval = bus_dispatch_matches (activation_transaction, NULL,
-                                             systemd, message, error);
+                                             systemd, message,
+                                             NULL, NULL, error);
             }
           else
             {
@@ -2399,6 +2406,15 @@ bus_activation_list_services (BusActivation *activation,
     {
       BusActivationEntry *entry = _dbus_hash_iter_get_value (&iter);
 
+      /* Unique names aren't activatable */
+      _dbus_assert (entry->name[0] != ':');
+
+      /* Skip the ones the observer is not allowed to know about */
+      if (observer != NULL &&
+          !bus_containers_check_can_see_well_known_name (observer,
+                                                         entry->name))
+        continue;
+
       retval[i] = _dbus_strdup (entry->name);
       if (retval[i] == NULL)
 	goto error;
@@ -2409,7 +2425,7 @@ bus_activation_list_services (BusActivation *activation,
   retval[i] = NULL;
 
   if (array_len)
-    *array_len = len;
+    *array_len = i;
 
   *listp = retval;
   return TRUE;
