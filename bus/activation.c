@@ -2361,7 +2361,8 @@ cancel_pending_activation:
 dbus_bool_t
 bus_activation_list_services (BusActivation *activation,
 			      char        ***listp,
-			      int           *array_len)
+			      int           *array_len,
+                              DBusConnection *observer)
 {
   int i, j, len;
   char **retval;
