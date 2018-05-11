@@ -1897,6 +1897,7 @@ bus_activation_activate_service (BusActivation  *activation,
         NULL, /* addressed recipient */
         NULL, /* proposed recipient */
         activation_message,
+        NULL,
         entry,
         error))
     {
