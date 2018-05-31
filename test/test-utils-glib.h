@@ -140,4 +140,7 @@ void test_incomplete (const gchar *message);
 
 gchar *test_get_helper_executable (const gchar *exe);
 
+void test_sync_gdbus_connections (GDBusConnection *caller,
+                                  GDBusConnection *callee);
+
 #endif
