@@ -1646,10 +1646,28 @@ dbus_bool_t
 bus_containers_check_can_see_well_known_name (DBusConnection *observer,
                                               const char *name)
 {
+#ifdef DBUS_ENABLE_CONTAINERS
+  BusContainerInstance *instance;
+#endif
+
   _dbus_assert (observer != NULL);
   _dbus_assert (name != NULL);
   _dbus_assert (name[0] != ':');
   _dbus_assert (strcmp (name, DBUS_SERVICE_DBUS) != 0);
+
+#ifdef DBUS_ENABLE_CONTAINERS
+  instance = connection_get_instance (observer);
+
+  if (instance == NULL)
+    return TRUE;
+
+  if (instance->has_policy)
+    {
+      /* TODO: Have a policy by which containers can optionally see
+       * (and own) well-known names */
+      return FALSE;
+    }
+#endif /* DBUS_ENABLE_CONTAINERS */
 
   return TRUE;
 }
