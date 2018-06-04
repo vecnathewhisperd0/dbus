@@ -124,6 +124,10 @@ backported_g_steal_pointer (gpointer pointer_to_pointer)
   *pp = NULL;
   return ret;
 }
+
+#define g_strv_contains(haystack, needle) backported_g_strv_contains (haystack, needle)
+gboolean backported_g_strv_contains (const gchar * const *haystack,
+                                     const gchar *needle);
 #endif
 
 #ifndef g_assert_nonnull
