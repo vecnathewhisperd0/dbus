@@ -423,13 +423,16 @@ bus_selinux_check (BusSELinuxID        *sender_sid,
     switch (errno)
       {
       case EACCES:
-        _dbus_verbose ("SELinux denying due to security policy.\n");
+        dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                        "SELinux denying due to security policy.");
         return FALSE;
       case EINVAL:
-        _dbus_verbose ("SELinux denying due to invalid security context.\n");
+        dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                        "SELinux denying due to invalid security context.");
         return FALSE;
       default:
-        _dbus_verbose ("SELinux denying due to: %s\n", _dbus_strerror (errno));
+        dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                        "SELinux denying due to: %s", _dbus_strerror (errno));
         return FALSE;
       }
     }

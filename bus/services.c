@@ -445,20 +445,13 @@ bus_registry_acquire_service (BusRegistry      *registry,
   if (!bus_selinux_allows_acquire_service (connection, sid,
 					   _dbus_string_get_const_data (service_name), error))
     {
-
-      if (dbus_error_is_set (error) &&
-	  dbus_error_has_name (error, DBUS_ERROR_NO_MEMORY))
-	{
-	  goto out;
-	}
-
-      dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
-                      "Connection \"%s\" is not allowed to own the service \"%s\" due "
-                      "to SELinux policy",
+      _dbus_verbose ( "Connection \"%s\" is not allowed to own the service \"%s\" due "
+                      "to SELinux policy: \"%s\"\n",
                       bus_connection_is_active (connection) ?
                       bus_connection_get_name (connection) :
                       "(inactive)",
-                      _dbus_string_get_const_data (service_name));
+                      _dbus_string_get_const_data (service_name),
+                      error->message);
       goto out;
     }
 
