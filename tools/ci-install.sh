@@ -95,6 +95,18 @@ case "$ci_distro" in
                 ;;
         esac
 
+        case "$ci_suite" in
+            (trusty)
+                # Ubuntu 14.04 didn't have the wine32, wine64 packages
+                wine32=wine:i386
+                wine64=wine:amd64
+                ;;
+            (*)
+                wine32=wine32
+                wine64=wine64
+                ;;
+        esac
+
         case "$ci_host" in
             (i686-w64-mingw32)
                 $sudo dpkg --add-architecture i386
