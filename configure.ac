@@ -722,13 +722,6 @@ AC_CHECK_HEADERS(ws2tcpip.h)
 
 AC_CHECK_HEADERS(alloca.h)
 
-# Add -D_POSIX_PTHREAD_SEMANTICS if on Solaris
-#
-case $host_os in
-    solaris*)
-       CFLAGS="$CFLAGS -D_POSIX_PTHREAD_SEMANTICS" ;;
-esac
-
 # checking for a posix version of getpwnam_r
 # if we are cross compiling and can not run the test
 # assume getpwnam_r is the posix version
@@ -1314,7 +1307,7 @@ LDFLAGS="$EXTRA_LDFLAGS $LDFLAGS"
 case $host_os in
     solaris*)
         # Solaris' C library apparently needs these runes to be threadsafe...
-        CFLAGS="$CFLAGS -D_POSIX_PTHREAD_SEMANTICS -D_REENTRANT"
+        CFLAGS="$CFLAGS -D_REENTRANT"
         # ... this opt-in to get sockaddr_in6 and sockaddr_storage...
         CFLAGS="$CFLAGS -D__EXTENSIONS__"
         # ... and this opt-in to get file descriptor passing support
