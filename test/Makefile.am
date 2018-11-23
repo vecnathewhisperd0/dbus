@@ -575,6 +575,7 @@ static_data = \
 	data/valid-config-files/basic.conf \
 	data/valid-config-files/basic.d/basic.conf \
 	data/valid-config-files/check-own-rules.conf \
+	data/valid-config-files/eavesdrop.conf \
 	data/valid-config-files/entities.conf \
 	data/valid-config-files/listen-unix-runtime.conf \
 	data/valid-config-files/many-rules.conf \
