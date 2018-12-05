@@ -120,14 +120,14 @@ case "$ci_distro" in
 
         case "$ci_host" in
             (i686-w64-mingw32)
-                $sudo apt-get -qq -y install \
+                $sudo apt-get -qq -y --no-install-recommends install \
                     binutils-mingw-w64-i686 \
                     g++-mingw-w64-i686 \
                     $wine32 \
                     ${NULL}
                 ;;
             (x86_64-w64-mingw32)
-                $sudo apt-get -qq -y install \
+                $sudo apt-get -qq -y --no-install-recommends install \
                     binutils-mingw-w64-x86-64\
                     g++-mingw-w64-x86-64 \
                     $wine64 \
@@ -135,7 +135,8 @@ case "$ci_distro" in
                 ;;
         esac
 
-        $sudo apt-get -qq -y install \
+        $sudo apt-get -qq -y --no-install-recommends install \
+            adduser \
             autoconf-archive \
             automake \
             autotools-dev \
@@ -146,6 +147,8 @@ case "$ci_distro" in
             dh-exec \
             doxygen \
             dpkg-dev \
+            g++ \
+            gcc \
             gnome-desktop-testing \
             libapparmor-dev \
             libaudit-dev \
@@ -158,6 +161,7 @@ case "$ci_distro" in
             python \
             python-dbus \
             python-gi \
+            sudo \
             valgrind \
             wget \
             xauth \
@@ -166,11 +170,15 @@ case "$ci_distro" in
             xvfb \
             ${NULL}
 
+        # Make sure we have a messagebus user, even if the dbus package
+        # isn't installed
+        $sudo adduser --system --quiet --home /nonexistent --no-create-home \
+            --disabled-password --group messagebus
+
         if [ "$ci_in_docker" = yes ]; then
             # Add the user that we will use to do the build inside the
             # Docker container, and let them use sudo
             adduser --disabled-password user </dev/null
-            apt-get -y install sudo
             echo "user ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nopasswd
             chmod 0440 /etc/sudoers.d/nopasswd
         fi
@@ -190,7 +198,7 @@ case "$ci_distro" in
 
             (*)
                 # assume Ubuntu 18.04 'bionic', Debian 10 'buster' or newer
-                $sudo apt-get -qq -y install ducktype
+                $sudo apt-get -qq -y --no-install-recommends install ducktype
                 ;;
         esac
         ;;
