@@ -98,6 +98,19 @@ maybe_fail_tests () {
 
 NOCONFIGURE=1 ./autogen.sh
 
+case "$ci_buildsys" in
+    (cmake-dist)
+        # Do an Autotools `make dist`, then build *that* with CMake,
+        # to assert that our official release tarballs will be enough
+        # to build with CMake.
+        mkdir ci-build-dist
+        ( cd ci-build-dist; ../configure )
+        make -C ci-build-dist dist
+        tar -zxvf ci-build-dist/dbus-1.*.tar.gz
+        cd dbus-1.*/
+        ;;
+esac
+
 srcdir="$(pwd)"
 mkdir ci-build-${ci_variant}-${ci_host}
 cd ci-build-${ci_variant}-${ci_host}
@@ -286,7 +299,7 @@ case "$ci_buildsys" in
         fi
         ;;
 
-    (cmake)
+    (cmake|cmake-dist)
         case "$ci_host" in
             (*-w64-mingw32)
                 set _ "$@"
