@@ -254,6 +254,8 @@ bus_registry_ensure (BusRegistry               *registry,
   
   _dbus_assert (owner_connection_if_created != NULL);
   _dbus_assert (transaction != NULL);
+  /* The dbus-daemon's name can't be owned */
+  _dbus_assert (!_dbus_string_equal_c_str (service_name, DBUS_SERVICE_DBUS));
 
   service = _dbus_hash_table_lookup_string (registry->service_hash,
                                             _dbus_string_get_const_data (service_name));
@@ -354,6 +356,9 @@ bus_registry_list_services (BusRegistry *registry,
   while (_dbus_hash_iter_next (&iter))
     {
       BusService *service = _dbus_hash_iter_get_value (&iter);
+
+      /* The dbus-daemon itself is not listed in the registry */
+      _dbus_assert (strcmp (service->name, DBUS_SERVICE_DBUS) != 0);
 
       /* Skip the ones the observer is not allowed to know about */
       if (observer != NULL)
@@ -1085,6 +1090,10 @@ bus_service_swap_owner (BusService     *service,
 
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
 
+  /* The dbus-daemon's name can't be owned */
+  _dbus_assert (service != NULL);
+  _dbus_assert (strcmp (service->name, DBUS_SERVICE_DBUS) != 0);
+
   /* We send out notifications before we do any work we
    * might have to undo if the notification-sending failed
    */
@@ -1161,7 +1170,11 @@ bus_service_remove_owner (BusService     *service,
   BusOwner *primary_owner;
   
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
-  
+
+  /* The dbus-daemon's name can't be owned */
+  _dbus_assert (service != NULL);
+  _dbus_assert (strcmp (service->name, DBUS_SERVICE_DBUS) != 0);
+
   /* We send out notifications before we do any work we
    * might have to undo if the notification-sending failed
    */

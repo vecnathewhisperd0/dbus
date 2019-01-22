@@ -1571,6 +1571,10 @@ bus_containers_check_can_receive (DBusConnection *sender,
  * This doesn't have a DBusError, because on error we must always
  * behave as though the name didn't exist, to avoid leaking
  * information.
+ *
+ * name must be a valid D-Bus well-known name: callers must already
+ * have checked for unique names (use check_can_see_connection for those
+ * instead) and DBUS_SERVICE_DBUS (always visible).
  */
 dbus_bool_t
 bus_containers_check_can_see_well_known_name (DBusConnection *observer,
@@ -1579,6 +1583,7 @@ bus_containers_check_can_see_well_known_name (DBusConnection *observer,
   _dbus_assert (observer != NULL);
   _dbus_assert (name != NULL);
   _dbus_assert (name[0] != ':');
+  _dbus_assert (strcmp (name, DBUS_SERVICE_DBUS) != 0);
 
   return TRUE;
 }

@@ -70,6 +70,9 @@ send_one_message (DBusConnection *connection,
 {
   DBusError stack_error = DBUS_ERROR_INIT;
 
+  _dbus_assert (needs_to_see_well_known_name == NULL ||
+                strcmp (needs_to_see_well_known_name, DBUS_SERVICE_DBUS) != 0);
+
   if (needs_to_see_conn != NULL &&
       !bus_containers_check_can_see_connection (connection,
                                                 needs_to_see_conn))
@@ -160,6 +163,9 @@ bus_dispatch_matches (BusTransaction *transaction,
   _dbus_assert (addressed_recipient == NULL || needs_to_see_conn == NULL);
   _dbus_assert (addressed_recipient == NULL ||
                 needs_to_see_well_known_name == NULL);
+  /* The dbus-daemon itself is never the name we are looking for */
+  _dbus_assert (needs_to_see_well_known_name == NULL ||
+                strcmp (needs_to_see_well_known_name, DBUS_SERVICE_DBUS) != 0);
 
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
 

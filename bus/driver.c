@@ -67,6 +67,9 @@ bus_driver_get_owner_of_name (DBusConnection *observer,
   if (serv == NULL)
     return NULL;
 
+  /* The dbus-daemon itself is not in the BusRegistry */
+  _dbus_assert (strcmp (name, DBUS_SERVICE_DBUS) != 0);
+
   owner = bus_service_get_primary_owners_connection (serv);
 
   if (name[0] == ':')
@@ -277,6 +280,10 @@ bus_driver_send_name_owner_changed (const char     *service_name,
 
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
 
+  /* The dbus-daemon's own name is never owned. */
+  _dbus_assert (service_name != NULL);
+  _dbus_assert (strcmp (service_name, DBUS_SERVICE_DBUS) != 0);
+
   if (old_owner != NULL)
     old_owner_name = bus_connection_get_name (old_owner);
 
@@ -363,6 +370,13 @@ bus_driver_send_name_owner_changed (const char     *service_name,
       needs_to_see_conn = NULL;
       needs_to_see_well_known_name = service_name;
     }
+
+  _dbus_assert (needs_to_see_well_known_name != NULL ||
+                needs_to_see_conn != NULL);
+  _dbus_assert (needs_to_see_well_known_name == NULL ||
+                needs_to_see_conn == NULL);
+  _dbus_assert (needs_to_see_well_known_name == NULL ||
+                needs_to_see_well_known_name == service_name);
 
   retval = bus_dispatch_matches (transaction, NULL, NULL, message,
                                  needs_to_see_conn,

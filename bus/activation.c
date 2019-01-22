@@ -529,6 +529,9 @@ update_desktop_file_entry (BusActivation       *activation,
           goto out;
         }
 
+      /* We already checked for this */
+      _dbus_assert (strcmp (entry->name, DBUS_SERVICE_DBUS) != 0);
+
       if (!_dbus_hash_table_insert_string (activation->entries, entry->name, bus_activation_entry_ref (entry)))
         {
           BUS_SET_OOM (error);
@@ -580,6 +583,9 @@ update_desktop_file_entry (BusActivation       *activation,
       dbus_free (entry->assumed_apparmor_label);
       entry->assumed_apparmor_label = assumed_apparmor_label;
       assumed_apparmor_label = NULL;
+
+      /* We already checked for this */
+      _dbus_assert (strcmp (entry->name, DBUS_SERVICE_DBUS) != 0);
 
       if (!_dbus_hash_table_insert_string (activation->entries,
                                            entry->name, bus_activation_entry_ref(entry)))
@@ -2408,6 +2414,9 @@ bus_activation_list_services (BusActivation *activation,
 
       /* Unique names aren't activatable */
       _dbus_assert (entry->name[0] != ':');
+
+      /* The dbus-daemon isn't activatable */
+      _dbus_assert (strcmp (entry->name, DBUS_SERVICE_DBUS) != 0);
 
       /* Skip the ones the observer is not allowed to know about */
       if (observer != NULL &&
