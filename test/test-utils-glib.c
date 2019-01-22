@@ -1016,3 +1016,18 @@ backported_g_strv_contains (const gchar * const *haystack,
   return FALSE;
 }
 #endif
+
+#if !GLIB_CHECK_VERSION(2, 52, 1)
+/* Work around https://bugzilla.gnome.org/show_bug.cgi?id=779409 */
+void
+test_g_dbus_connection_remove_filter (GDBusConnection *connection,
+                                      guint filter_id)
+{
+  GLogLevelFlags old_fatal_mask;
+
+  /* Temporarily make warnings not fatal */
+  old_fatal_mask = g_log_set_always_fatal (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL);
+  (g_dbus_connection_remove_filter) (connection, filter_id);
+  g_log_set_always_fatal (old_fatal_mask);
+}
+#endif
