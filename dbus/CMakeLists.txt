@@ -156,6 +156,7 @@ endif()
 ### to be unless they move to DBUS_SHARED_SOURCES later)
 set(DBUS_UTIL_SOURCES
     dbus-asv-util.c
+    dbus-file-util.c
     dbus-mainloop.c
     dbus-message-util.c
     dbus-shell.c

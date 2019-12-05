@@ -39,6 +39,7 @@ DBUS_BEGIN_DECLS
 /**
  * File interface
  */
+DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_file_exists         (const char       *file);
 DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_file_get_contents   (DBusString       *str,
@@ -56,6 +57,10 @@ dbus_bool_t    _dbus_create_file_exclusively (const DBusString *filename,
                                               DBusError        *error);
 DBUS_PRIVATE_EXPORT
 dbus_bool_t    _dbus_delete_file             (const DBusString *filename,
+                                              DBusError        *error);
+DBUS_PRIVATE_EXPORT
+dbus_bool_t _dbus_file_copy                  (const DBusString *from,
+                                              const DBusString *to,
                                               DBusError        *error);
                                               
 /** @} */
