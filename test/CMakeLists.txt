@@ -72,7 +72,12 @@ set(manual-paths_SOURCES
     manual-paths.c
 )
 
+set(test-file_SOURCES
+    test-file.c
+)
+
 add_helper_executable(manual-dir-iter ${manual-dir-iter_SOURCES} ${DBUS_INTERNAL_LIBRARIES})
+add_test_executable(test-file ${test-file_SOURCES} dbus-testutils)
 add_helper_executable(test-service ${test-service_SOURCES} dbus-testutils)
 add_helper_executable(test-names ${test-names_SOURCES} dbus-testutils)
 add_test_executable(test-shell ${test-shell_SOURCES} ${DBUS_INTERNAL_LIBRARIES})
