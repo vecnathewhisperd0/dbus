@@ -310,6 +310,7 @@ add_library(dbus-internal ${DBUS_INTERNAL_ADD_LIBRARY_OPTIONS}
 )
 target_link_libraries(dbus-internal dbus-1)
 if(WIN32)
+    target_compile_definitions(dbus-internal PUBLIC DBUS_STATIC_BUILD)
     if(WINCE)
         target_link_libraries(dbus-internal ws2)
     else(WINCE)
