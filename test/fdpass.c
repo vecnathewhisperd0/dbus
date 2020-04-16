@@ -50,6 +50,14 @@
 
 #include "test-utils-glib.h"
 
+#ifdef DBUS_ENABLE_EMBEDDED_TESTS
+#include <dbus/dbus-message-internal.h>
+#else
+typedef struct _DBusInitialFDs DBusInitialFDs;
+#define _dbus_check_fdleaks_enter() NULL
+#define _dbus_check_fdleaks_leave(fds) do {} while (0)
+#endif
+
 /* Arbitrary; included here to avoid relying on the default */
 #define MAX_MESSAGE_UNIX_FDS 20
 /* This test won't work on Linux unless this is true. */
@@ -91,6 +99,7 @@ typedef struct {
     GQueue messages;
 
     int fd_before;
+    DBusInitialFDs *initial_fds;
 } Fixture;
 
 static void oom (const gchar *doing) G_GNUC_NORETURN;
@@ -171,6 +180,8 @@ test_connect (Fixture *f,
     gboolean should_support_fds)
 {
   char *address;
+
+  f->initial_fds = _dbus_check_fdleaks_enter ();
 
   g_assert (f->left_server_conn == NULL);
   g_assert (f->right_server_conn == NULL);
@@ -835,6 +846,9 @@ teardown (Fixture *f,
   if (f->fd_before >= 0 && close (f->fd_before) < 0)
     g_error ("%s", g_strerror (errno));
 #endif
+
+  if (f->initial_fds != NULL)
+    _dbus_check_fdleaks_leave (f->initial_fds);
 }
 
 int
