@@ -31,6 +31,10 @@
 #include <dbus/dbus-internals.h>
 #include <dbus/dbus-message-internal.h>
 
+static void bus_client_policy_optimize (BusClientPolicy *policy);
+static dbus_bool_t bus_client_policy_append_rule (BusClientPolicy *policy,
+                                                  BusPolicyRule *rule);
+
 BusPolicyRule*
 bus_policy_rule_new (BusPolicyRuleType type,
                      dbus_bool_t       allow)
@@ -778,7 +782,7 @@ remove_rules_by_type_up_to (BusClientPolicy   *policy,
     }
 }
 
-void
+static void
 bus_client_policy_optimize (BusClientPolicy *policy)
 {
   DBusList *link;
@@ -858,7 +862,7 @@ bus_client_policy_optimize (BusClientPolicy *policy)
                  _dbus_list_get_length (&policy->rules));
 }
 
-dbus_bool_t
+static dbus_bool_t
 bus_client_policy_append_rule (BusClientPolicy *policy,
                                BusPolicyRule   *rule)
 {
