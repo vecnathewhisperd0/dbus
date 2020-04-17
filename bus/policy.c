@@ -31,7 +31,6 @@
 #include <dbus/dbus-internals.h>
 #include <dbus/dbus-message-internal.h>
 
-static void bus_client_policy_optimize (BusClientPolicy *policy);
 static dbus_bool_t bus_client_policy_append_rule (BusClientPolicy *policy,
                                                   BusPolicyRule *rule);
 
@@ -372,8 +371,6 @@ bus_policy_create_client_policy (BusPolicy      *policy,
                            client))
     goto nomem;
 
-  bus_client_policy_optimize (client);
-  
   return client;
 
  nomem:
@@ -757,109 +754,6 @@ bus_client_policy_unref (BusClientPolicy *policy)
 
       dbus_free (policy);
     }
-}
-
-static void
-remove_rules_by_type_up_to (BusClientPolicy   *policy,
-                            BusPolicyRuleType  type,
-                            DBusList          *up_to)
-{
-  DBusList *link;
-
-  link = _dbus_list_get_first_link (&policy->rules);
-  while (link != up_to)
-    {
-      BusPolicyRule *rule = link->data;
-      DBusList *next = _dbus_list_get_next_link (&policy->rules, link);
-
-      if (rule->type == type)
-        {
-          _dbus_list_remove_link (&policy->rules, link);
-          bus_policy_rule_unref (rule);
-        }
-      
-      link = next;
-    }
-}
-
-static void
-bus_client_policy_optimize (BusClientPolicy *policy)
-{
-  DBusList *link;
-
-  /* The idea here is that if we have:
-   * 
-   * <allow send_interface="foo.bar"/>
-   * <deny send_interface="*"/>
-   *
-   * (for example) the deny will always override the allow.  So we
-   * delete the allow. Ditto for deny followed by allow, etc. This is
-   * a dumb thing to put in a config file, but the <include> feature
-   * of files allows for an "inheritance and override" pattern where
-   * it could make sense. If an included file wants to "start over"
-   * with a blanket deny, no point keeping the rules from the parent
-   * file.
-   */
-
-  _dbus_verbose ("Optimizing policy with %d rules\n",
-                 _dbus_list_get_length (&policy->rules));
-  
-  link = _dbus_list_get_first_link (&policy->rules);
-  while (link != NULL)
-    {
-      BusPolicyRule *rule;
-      DBusList *next;
-      dbus_bool_t remove_preceding;
-
-      next = _dbus_list_get_next_link (&policy->rules, link);
-      rule = link->data;
-      
-      remove_preceding = FALSE;
-
-      _dbus_assert (rule != NULL);
-      
-      switch (rule->type)
-        {
-        case BUS_POLICY_RULE_SEND:
-          remove_preceding =
-            rule->d.send.message_type == DBUS_MESSAGE_TYPE_INVALID &&
-            rule->d.send.path == NULL &&
-            rule->d.send.interface == NULL &&
-            rule->d.send.member == NULL &&
-            rule->d.send.error == NULL &&
-            rule->d.send.destination == NULL;
-          break;
-        case BUS_POLICY_RULE_RECEIVE:
-          remove_preceding =
-            rule->d.receive.message_type == DBUS_MESSAGE_TYPE_INVALID &&
-            rule->d.receive.path == NULL &&
-            rule->d.receive.interface == NULL &&
-            rule->d.receive.member == NULL &&
-            rule->d.receive.error == NULL &&
-            rule->d.receive.origin == NULL;
-          break;
-        case BUS_POLICY_RULE_OWN:
-          remove_preceding =
-            rule->d.own.service_name == NULL;
-          break;
-
-        /* The other rule types don't appear in this list */
-        case BUS_POLICY_RULE_USER:
-        case BUS_POLICY_RULE_GROUP:
-        default:
-          _dbus_assert_not_reached ("invalid rule");
-          break;
-        }
-
-      if (remove_preceding)
-        remove_rules_by_type_up_to (policy, rule->type,
-                                    link);
-      
-      link = next;
-    }
-
-  _dbus_verbose ("After optimization, policy has %d rules\n",
-                 _dbus_list_get_length (&policy->rules));
 }
 
 static dbus_bool_t
