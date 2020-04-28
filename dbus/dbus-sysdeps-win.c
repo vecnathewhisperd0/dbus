@@ -1318,6 +1318,19 @@ _dbus_poll_events (DBusPollFD *fds,
     pEvents[i] = WSA_INVALID_EVENT;
 
   for (i = 0; i < n_fds; i++)
+    pEvents[i] = WSA_INVALID_EVENT;
+
+#ifdef DBUS_ENABLE_VERBOSE_MODE
+  _dbus_verbose ("_dbus_poll: to=%d", timeout_milliseconds);
+  if (!_dbus_dump_fd_events (fds, n_fds))
+    {
+      _dbus_win_set_errno (ENOMEM);
+      ret = -1;
+      goto oom;
+    }
+#endif
+
+  for (i = 0; i < n_fds; i++)
     {
       DBusPollFD *fdp = &fds[i];
       WSAEVENT ev;
