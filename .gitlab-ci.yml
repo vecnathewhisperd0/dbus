@@ -107,7 +107,7 @@ x86_64-w64-mingw32:
   stage: build
   image: "debian:buster-slim"
   variables:
-    ci_host: "i686-w64-mingw32"
+    ci_host: "x86_64-w64-mingw32"
   script: *script
 
 x86_64-w64-mingw32-cmake-debug:
@@ -116,7 +116,7 @@ x86_64-w64-mingw32-cmake-debug:
   image: "debian:buster-slim"
   variables:
     ci_buildsys: "cmake"
-    ci_host: "i686-w64-mingw32"
+    ci_host: "x86_64-w64-mingw32"
     ci_variant: "debug"
   script: *script
 
