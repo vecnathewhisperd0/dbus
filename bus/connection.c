@@ -1487,6 +1487,15 @@ bus_connection_is_queued_owner_by_prefix (DBusConnection *connection,
   return FALSE;
 }
 
+const DBusList *
+bus_connection_get_owned_services_list (DBusConnection *connection)
+{
+  BusConnectionData *d;
+
+  d = BUS_CONNECTION_DATA (connection);
+  return d->services_owned;
+}
+
 void
 bus_connection_add_owned_service_link (DBusConnection *connection,
                                        DBusList       *link)
