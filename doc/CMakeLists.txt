@@ -11,6 +11,7 @@ if(DOXYGEN_EXECUTABLE)
     add_auto_option(ENABLE_QT_HELP "build qt help documentation (requires qhelpgenerator(-qt5)); set INSTALL_QCH_DIR for custom qch installation path" AUTO)
 endif()
 
+set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/api)
 if(DBUS_ENABLE_DOXYGEN_DOCS)
     set(top_srcdir ${CMAKE_SOURCE_DIR})
     set(top_builddir ${CMAKE_BINARY_DIR})
@@ -28,7 +29,7 @@ if(DBUS_ENABLE_DOXYGEN_DOCS)
         message(STATUS "${QHELPGENERATOR_EXECUTABLE} found")
         set(DOXYGEN_GENERATE_QHP YES)
         set(DOXYGEN_QHG_LOCATION ${QHELPGENERATOR_EXECUTABLE})
-        set(DOXYGEN_QCH_FILE ${CMAKE_CURRENT_BINARY_DIR}/api/qch/dbus-${VERSION}.qch)
+        set(DOXYGEN_QCH_FILE ${DOXYGEN_OUTPUT_DIRECTORY}/qch/dbus-${VERSION}.qch)
         set(DBUS_ENABLE_QTHELP_DOCS ON PARENT_SCOPE)
         install(FILES ${DOXYGEN_QCH_FILE} DESTINATION ${INSTALL_QCH_DIR})
     else()
@@ -39,10 +40,10 @@ if(DBUS_ENABLE_DOXYGEN_DOCS)
     file(GLOB dbus_files "${CMAKE_SOURCE_DIR}/dbus/*.[ch]*")
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/doxygen.stamp
-        DEPENDS ${CMAKE_SOURCE_DIR}/Doxyfile.in  ${CMAKE_BINARY_DIR}/Doxyfile ${dbus_files}
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/api/html
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/api/man
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/api/xml
+        DEPENDS ${CMAKE_SOURCE_DIR}/Doxyfile.in ${CMAKE_BINARY_DIR}/Doxyfile ${doc_files}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${DOXYGEN_OUTPUT_DIRECTORY}/html
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${DOXYGEN_OUTPUT_DIRECTORY}/man
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${DOXYGEN_OUTPUT_DIRECTORY}/xml
         COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
         COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/doxygen.stamp
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -52,7 +53,7 @@ if(DBUS_ENABLE_DOXYGEN_DOCS)
         DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/doxygen.stamp
     )
     add_dependencies(doc apidoc)
-    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/api/html/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/dbus/api)
+    install(DIRECTORY ${DOXYGEN_OUTPUT_DIRECTORY}/html/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/dbus/api)
 endif()
 
 find_program(XSLTPROC_EXECUTABLE xsltproc)
@@ -67,7 +68,7 @@ if(DBUS_HAVE_XSLTPROC AND DBUS_ENABLE_DOXYGEN_DOCS)
         COMMAND ${XSLTPROC_EXECUTABLE}
             -o ${CMAKE_CURRENT_BINARY_DIR}/dbus.devhelp2
             ${CMAKE_CURRENT_SOURCE_DIR}/doxygen_to_devhelp.xsl
-            ${CMAKE_CURRENT_BINARY_DIR}/api/xml/index.xml
+            ${DOXYGEN_OUTPUT_DIRECTORY}/xml/index.xml
         DEPENDS
             ${CMAKE_CURRENT_SOURCE_DIR}/doxygen_to_devhelp.xsl
             ${CMAKE_CURRENT_BINARY_DIR}/doxygen.stamp

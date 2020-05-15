@@ -1241,6 +1241,9 @@ else
 fi
 AC_SUBST([DBUS_GENERATE_MAN])
 
+DOXYGEN_OUTPUT_DIRECTORY="$(pwd)/doc/api"
+AC_SUBST([DOXYGEN_OUTPUT_DIRECTORY])
+
 AM_CONDITIONAL(DBUS_DOXYGEN_DOCS_ENABLED, test x$enable_doxygen_docs = xyes)
 AC_MSG_RESULT($enable_doxygen_docs)
 
@@ -1265,7 +1268,7 @@ AS_IF([test "x$enable_doxygen_docs" = xyes && test "x$QHELPGENERATOR" != x], [
     enable_qthelp_docs=yes
     DOXYGEN_GENERATE_QHP=YES
     DOXYGEN_QHG_LOCATION="$QHELPGENERATOR"
-    DOXYGEN_QCH_FILE="$(pwd)/doc/api/qch/dbus-$VERSION.qch"
+    DOXYGEN_QCH_FILE="$DOXYGEN_OUTPUT_DIRECTORY/qch/dbus-$VERSION.qch"
   ], [
     DOXYGEN_GENERATE_QHP=NO
     enable_qthelp_docs=no
