@@ -17,6 +17,10 @@ Fixes:
 • Fix formatting of dbus_message_append_args example
   (dbus!126, Felipe Franciosi)
 
+• Avoid a test failure on Linux when built in a container as uid 0, but
+  without the necessary privileges to increase resource limits
+  (dbus!58, Debian #908092; Simon McVittie)
+
 • When building with CMake, cope with libX11 in a non-standard location
   (dbus!129, Tuomo Rinne)
 
