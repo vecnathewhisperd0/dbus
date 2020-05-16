@@ -1234,11 +1234,7 @@ if test x$enable_doxygen_docs = xyes || test x$enable_doxygen_docs = xfull; then
     fi
 fi
 
-if test x$dbus_win = xno; then
-    DBUS_GENERATE_MAN=YES
-else
-    DBUS_GENERATE_MAN=NO
-fi
+DBUS_GENERATE_MAN=NO
 AC_SUBST([DBUS_GENERATE_MAN])
 
 if test x$enable_doxygen_docs = xfull; then
