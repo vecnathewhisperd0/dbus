@@ -771,12 +771,24 @@ bus_client_policy_append_rule (BusClientPolicy *policy,
   return TRUE;
 }
 
+struct MatchSendRuleParams {
+  BusRegistry    *registry;
+  dbus_bool_t     requested_reply;
+  DBusConnection *receiver;
+  DBusMessage    *message;
+};
+
+struct MatchReceiveRuleParams {
+  BusRegistry    *registry;
+  dbus_bool_t     requested_reply;
+  DBusConnection *sender;
+  DBusMessage    *message;
+  dbus_bool_t     eavesdropping;
+};
+
 static dbus_bool_t
 check_send_rule (const BusPolicyRule  *rule,
-                 BusRegistry          *registry,
-                 dbus_bool_t           requested_reply,
-                 DBusConnection       *receiver,
-                 DBusMessage          *message)
+                 const struct MatchSendRuleParams *match_params)
 {
   /* Rule is skipped if it specifies a different
    * message name from the message, or a different
@@ -790,7 +802,7 @@ check_send_rule (const BusPolicyRule  *rule,
 
   if (rule->d.send.message_type != DBUS_MESSAGE_TYPE_INVALID)
     {
-      if (dbus_message_get_type (message) != rule->d.send.message_type)
+      if (dbus_message_get_type (match_params->message) != rule->d.send.message_type)
         {
           _dbus_verbose ("  (policy) skipping rule for different message type\n");
           return FALSE;
@@ -798,13 +810,13 @@ check_send_rule (const BusPolicyRule  *rule,
     }
 
   /* If it's a reply, the requested_reply flag kicks in */
-  if (dbus_message_get_reply_serial (message) != 0)
+  if (dbus_message_get_reply_serial (match_params->message) != 0)
     {
       /* for allow, requested_reply=true means the rule applies
        * only when reply was requested. requested_reply=false means
        * always allow.
        */
-      if (!requested_reply && rule->allow && rule->d.send.requested_reply && !rule->d.send.eavesdrop)
+      if (!match_params->requested_reply && rule->allow && rule->d.send.requested_reply && !rule->d.send.eavesdrop)
         {
           _dbus_verbose ("  (policy) skipping allow rule since it only applies to requested replies and does not allow eavesdropping\n");
           return FALSE;
@@ -814,7 +826,7 @@ check_send_rule (const BusPolicyRule  *rule,
        * when the reply was not requested. requested_reply=true means the
        * rule always applies.
        */
-      if (requested_reply && !rule->allow && !rule->d.send.requested_reply)
+      if (match_params->requested_reply && !rule->allow && !rule->d.send.requested_reply)
         {
           _dbus_verbose ("  (policy) skipping deny rule since it only applies to unrequested replies\n");
           return FALSE;
@@ -823,8 +835,8 @@ check_send_rule (const BusPolicyRule  *rule,
 
   if (rule->d.send.path != NULL)
     {
-      if (dbus_message_get_path (message) != NULL &&
-          strcmp (dbus_message_get_path (message),
+      if (dbus_message_get_path (match_params->message) != NULL &&
+          strcmp (dbus_message_get_path (match_params->message),
                   rule->d.send.path) != 0)
         {
           _dbus_verbose ("  (policy) skipping rule for different path\n");
@@ -841,11 +853,11 @@ check_send_rule (const BusPolicyRule  *rule,
        */
       dbus_bool_t no_interface;
 
-      no_interface = dbus_message_get_interface (message) == NULL;
+      no_interface = dbus_message_get_interface (match_params->message) == NULL;
       
       if ((no_interface && rule->allow) ||
           (!no_interface &&
-           strcmp (dbus_message_get_interface (message),
+           strcmp (dbus_message_get_interface (match_params->message),
                    rule->d.send.interface) != 0))
         {
           _dbus_verbose ("  (policy) skipping rule for different interface\n");
@@ -855,8 +867,8 @@ check_send_rule (const BusPolicyRule  *rule,
 
   if (rule->d.send.member != NULL)
     {
-      if (dbus_message_get_member (message) != NULL &&
-          strcmp (dbus_message_get_member (message),
+      if (dbus_message_get_member (match_params->message) != NULL &&
+          strcmp (dbus_message_get_member (match_params->message),
                   rule->d.send.member) != 0)
         {
           _dbus_verbose ("  (policy) skipping rule for different member\n");
@@ -866,8 +878,8 @@ check_send_rule (const BusPolicyRule  *rule,
 
   if (rule->d.send.error != NULL)
     {
-      if (dbus_message_get_error_name (message) != NULL &&
-          strcmp (dbus_message_get_error_name (message),
+      if (dbus_message_get_error_name (match_params->message) != NULL &&
+          strcmp (dbus_message_get_error_name (match_params->message),
                   rule->d.send.error) != 0)
         {
           _dbus_verbose ("  (policy) skipping rule for different error name\n");
@@ -877,8 +889,8 @@ check_send_rule (const BusPolicyRule  *rule,
 
   if (rule->d.send.broadcast != BUS_POLICY_TRISTATE_ANY)
     {
-      if (dbus_message_get_destination (message) == NULL &&
-          dbus_message_get_type (message) == DBUS_MESSAGE_TYPE_SIGNAL)
+      if (dbus_message_get_destination (match_params->message) == NULL &&
+          dbus_message_get_type (match_params->message) == DBUS_MESSAGE_TYPE_SIGNAL)
         {
           /* it's a broadcast */
           if (rule->d.send.broadcast == BUS_POLICY_TRISTATE_FALSE)
@@ -907,9 +919,9 @@ check_send_rule (const BusPolicyRule  *rule,
        * on the assumption that the activated service will have the
        * requested name and no others.
        */
-      if (receiver == NULL)
+      if (match_params->receiver == NULL)
         {
-          if (!dbus_message_has_destination (message,
+          if (!dbus_message_has_destination (match_params->message,
                                              rule->d.send.destination))
             {
               _dbus_verbose ("  (policy) skipping rule because message dest is not %s\n",
@@ -924,7 +936,7 @@ check_send_rule (const BusPolicyRule  *rule,
 
           _dbus_string_init_const (&str, rule->d.send.destination);
 
-          service = bus_registry_lookup (registry, &str);
+          service = bus_registry_lookup (match_params->registry, &str);
           if (service == NULL)
             {
               _dbus_verbose ("  (policy) skipping rule because dest %s doesn't exist\n",
@@ -932,7 +944,7 @@ check_send_rule (const BusPolicyRule  *rule,
               return FALSE;
             }
 
-          if (!bus_service_owner_in_queue (service, receiver))
+          if (!bus_service_owner_in_queue (service, match_params->receiver))
             {
               _dbus_verbose ("  (policy) skipping rule because receiver isn't primary or queued owner of name %s\n",
                              rule->d.send.destination);
@@ -944,9 +956,9 @@ check_send_rule (const BusPolicyRule  *rule,
   if (rule->d.send.destination != NULL && rule->d.send.destination_is_prefix)
     {
       /* receiver can be NULL - the same as in !send.destination_is_prefix */
-      if (receiver == NULL)
+      if (match_params->receiver == NULL)
         {
-          const char *destination = dbus_message_get_destination (message);
+          const char *destination = dbus_message_get_destination (match_params->message);
           DBusString dest_name;
 
           if (destination == NULL)
@@ -968,7 +980,7 @@ check_send_rule (const BusPolicyRule  *rule,
         }
       else
         {
-          if (!bus_connection_is_queued_owner_by_prefix (receiver,
+          if (!bus_connection_is_queued_owner_by_prefix (match_params->receiver,
                                                          rule->d.send.destination))
             {
               _dbus_verbose ("  (policy) skipping rule because recipient isn't primary or queued owner of any name below %s\n",
@@ -981,7 +993,7 @@ check_send_rule (const BusPolicyRule  *rule,
   if (rule->d.send.min_fds > 0 ||
       rule->d.send.max_fds < DBUS_MAXIMUM_MESSAGE_UNIX_FDS)
     {
-      unsigned int n_fds = _dbus_message_get_n_unix_fds (message);
+      unsigned int n_fds = _dbus_message_get_n_unix_fds (match_params->message);
 
       if (n_fds < rule->d.send.min_fds || n_fds > rule->d.send.max_fds)
         {
@@ -998,11 +1010,7 @@ check_send_rule (const BusPolicyRule  *rule,
 
 static dbus_bool_t
 check_receive_rule (const BusPolicyRule  *rule,
-                    BusRegistry          *registry,
-                    dbus_bool_t           requested_reply,
-                    DBusConnection       *sender,
-                    DBusMessage          *message,
-                    dbus_bool_t           eavesdropping)
+                    const struct MatchReceiveRuleParams *match_params)
 {
   if (rule->type != BUS_POLICY_RULE_RECEIVE)
     {
@@ -1012,7 +1020,7 @@ check_receive_rule (const BusPolicyRule  *rule,
 
   if (rule->d.receive.message_type != DBUS_MESSAGE_TYPE_INVALID)
     {
-      if (dbus_message_get_type (message) != rule->d.receive.message_type)
+      if (dbus_message_get_type (match_params->message) != rule->d.receive.message_type)
         {
           _dbus_verbose ("  (policy) skipping rule for different message type\n");
           return FALSE;
@@ -1022,7 +1030,7 @@ check_receive_rule (const BusPolicyRule  *rule,
   /* for allow, eavesdrop=false means the rule doesn't apply when
    * eavesdropping. eavesdrop=true means always allow.
    */
-  if (eavesdropping && rule->allow && !rule->d.receive.eavesdrop)
+  if (match_params->eavesdropping && rule->allow && !rule->d.receive.eavesdrop)
     {
       _dbus_verbose ("  (policy) skipping allow rule since it doesn't apply to eavesdropping\n");
       return FALSE;
@@ -1031,20 +1039,20 @@ check_receive_rule (const BusPolicyRule  *rule,
   /* for deny, eavesdrop=true means the rule applies only when
    * eavesdropping; eavesdrop=false means always deny.
    */
-  if (!eavesdropping && !rule->allow && rule->d.receive.eavesdrop)
+  if (!match_params->eavesdropping && !rule->allow && rule->d.receive.eavesdrop)
     {
       _dbus_verbose ("  (policy) skipping deny rule since it only applies to eavesdropping\n");
       return FALSE;
     }
 
   /* If it's a reply, the requested_reply flag kicks in */
-  if (dbus_message_get_reply_serial (message) != 0)
+  if (dbus_message_get_reply_serial (match_params->message) != 0)
     {
       /* for allow, requested_reply=true means the rule applies
        * only when reply was requested. requested_reply=false means
        * always allow.
        */
-      if (!requested_reply && rule->allow && rule->d.receive.requested_reply && !rule->d.receive.eavesdrop)
+      if (!match_params->requested_reply && rule->allow && rule->d.receive.requested_reply && !rule->d.receive.eavesdrop)
         {
           _dbus_verbose ("  (policy) skipping allow rule since it only applies to requested replies and does not allow eavesdropping\n");
           return FALSE;
@@ -1054,7 +1062,7 @@ check_receive_rule (const BusPolicyRule  *rule,
        * when the reply was not requested. requested_reply=true means the
        * rule always applies.
        */
-      if (requested_reply && !rule->allow && !rule->d.receive.requested_reply)
+      if (match_params->requested_reply && !rule->allow && !rule->d.receive.requested_reply)
         {
           _dbus_verbose ("  (policy) skipping deny rule since it only applies to unrequested replies\n");
           return FALSE;
@@ -1063,8 +1071,8 @@ check_receive_rule (const BusPolicyRule  *rule,
 
   if (rule->d.receive.path != NULL)
     {
-      if (dbus_message_get_path (message) != NULL &&
-          strcmp (dbus_message_get_path (message),
+      if (dbus_message_get_path (match_params->message) != NULL &&
+          strcmp (dbus_message_get_path (match_params->message),
                   rule->d.receive.path) != 0)
         {
           _dbus_verbose ("  (policy) skipping rule for different path\n");
@@ -1081,11 +1089,11 @@ check_receive_rule (const BusPolicyRule  *rule,
        */
       dbus_bool_t no_interface;
 
-      no_interface = dbus_message_get_interface (message) == NULL;
+      no_interface = dbus_message_get_interface (match_params->message) == NULL;
 
       if ((no_interface && rule->allow) ||
           (!no_interface &&
-           strcmp (dbus_message_get_interface (message),
+           strcmp (dbus_message_get_interface (match_params->message),
                    rule->d.receive.interface) != 0))
         {
           _dbus_verbose ("  (policy) skipping rule for different interface\n");
@@ -1095,8 +1103,8 @@ check_receive_rule (const BusPolicyRule  *rule,
 
   if (rule->d.receive.member != NULL)
     {
-      if (dbus_message_get_member (message) != NULL &&
-          strcmp (dbus_message_get_member (message),
+      if (dbus_message_get_member (match_params->message) != NULL &&
+          strcmp (dbus_message_get_member (match_params->message),
                   rule->d.receive.member) != 0)
         {
           _dbus_verbose ("  (policy) skipping rule for different member\n");
@@ -1106,8 +1114,8 @@ check_receive_rule (const BusPolicyRule  *rule,
 
   if (rule->d.receive.error != NULL)
     {
-      if (dbus_message_get_error_name (message) != NULL &&
-          strcmp (dbus_message_get_error_name (message),
+      if (dbus_message_get_error_name (match_params->message) != NULL &&
+          strcmp (dbus_message_get_error_name (match_params->message),
                   rule->d.receive.error) != 0)
         {
           _dbus_verbose ("  (policy) skipping rule for different error name\n");
@@ -1122,9 +1130,9 @@ check_receive_rule (const BusPolicyRule  *rule,
        * built-in services don't have a DBusConnection but will
        * still set the sender on their messages.
        */
-      if (sender == NULL)
+      if (match_params->sender == NULL)
         {
-          if (!dbus_message_has_sender (message,
+          if (!dbus_message_has_sender (match_params->message,
                                         rule->d.receive.origin))
             {
               _dbus_verbose ("  (policy) skipping rule because message sender is not %s\n",
@@ -1139,7 +1147,7 @@ check_receive_rule (const BusPolicyRule  *rule,
 
           _dbus_string_init_const (&str, rule->d.receive.origin);
 
-          service = bus_registry_lookup (registry, &str);
+          service = bus_registry_lookup (match_params->registry, &str);
           
           if (service == NULL)
             {
@@ -1148,7 +1156,7 @@ check_receive_rule (const BusPolicyRule  *rule,
               return FALSE;
             }
 
-          if (!bus_service_owner_in_queue (service, sender))
+          if (!bus_service_owner_in_queue (service, match_params->sender))
             {
               _dbus_verbose ("  (policy) skipping rule because sender isn't primary or queued owner of %s\n",
                              rule->d.receive.origin);
@@ -1160,7 +1168,7 @@ check_receive_rule (const BusPolicyRule  *rule,
   if (rule->d.receive.min_fds > 0 ||
       rule->d.receive.max_fds < DBUS_MAXIMUM_MESSAGE_UNIX_FDS)
     {
-      unsigned int n_fds = _dbus_message_get_n_unix_fds (message);
+      unsigned int n_fds = _dbus_message_get_n_unix_fds (match_params->message);
 
       if (n_fds < rule->d.receive.min_fds || n_fds > rule->d.receive.max_fds)
         {
@@ -1216,6 +1224,13 @@ bus_client_policy_check_can_send (BusClientPolicy *policy,
 {
   DBusList *link;
   dbus_bool_t allowed;
+  
+  struct MatchSendRuleParams params;
+
+  params.registry = registry;
+  params.requested_reply = requested_reply;
+  params.receiver = receiver;
+  params.message = message;
 
   /* policy->rules is in the order the rules appeared
    * in the config file, i.e. last rule that applies wins
@@ -1223,7 +1238,7 @@ bus_client_policy_check_can_send (BusClientPolicy *policy,
 
   _dbus_verbose ("  (policy) checking send rules\n");
   *toggles = 0;
-
+  
   allowed = FALSE;
   link = _dbus_list_get_first_link (&policy->rules);
   while (link != NULL)
@@ -1232,7 +1247,7 @@ bus_client_policy_check_can_send (BusClientPolicy *policy,
 
       link = _dbus_list_get_next_link (&policy->rules, link);
 
-      if (check_send_rule (rule, registry, requested_reply, receiver, message))
+      if (check_send_rule (rule, &params))
         {
           allowed = rule->allow;
           *log = rule->d.send.log;
@@ -1261,17 +1276,21 @@ bus_client_policy_check_can_receive (BusClientPolicy *policy,
 {
   DBusList *link;
   dbus_bool_t allowed;
-  dbus_bool_t eavesdropping;
+  struct MatchReceiveRuleParams params;
 
-  eavesdropping =
+  params.eavesdropping =
     addressed_recipient != proposed_recipient &&
     dbus_message_get_destination (message) != NULL;
+  params.registry = registry;
+  params.requested_reply = requested_reply;
+  params.sender = sender;
+  params.message = message;
 
   /* policy->rules is in the order the rules appeared
    * in the config file, i.e. last rule that applies wins
    */
 
-  _dbus_verbose ("  (policy) checking receive rules, eavesdropping = %d\n", eavesdropping);
+  _dbus_verbose ("  (policy) checking receive rules, eavesdropping = %d\n", params.eavesdropping);
   *toggles = 0;
   
   allowed = FALSE;
@@ -1282,8 +1301,7 @@ bus_client_policy_check_can_receive (BusClientPolicy *policy,
 
       link = _dbus_list_get_next_link (&policy->rules, link);
 
-      if (check_receive_rule (rule, registry, requested_reply, sender,
-                              message, eavesdropping))
+      if (check_receive_rule (rule, &params))
         {
           allowed = rule->allow;
           (*toggles)++;
