@@ -31,8 +31,17 @@
 #include <dbus/dbus-internals.h>
 #include <dbus/dbus-message-internal.h>
 
-static dbus_bool_t bus_client_policy_append_rule (BusClientPolicy *policy,
-                                                  BusPolicyRule *rule);
+struct BusClientPolicy
+{
+  int refcount;
+
+  BusPolicy *policy;
+  unsigned long *groups;
+  int n_groups;
+  dbus_uid_t uid;
+  dbus_bool_t uid_set;
+  dbus_bool_t at_console;
+};
 
 BusPolicyRule*
 bus_policy_rule_new (BusPolicyRuleType type,
@@ -243,49 +252,12 @@ bus_policy_unref (BusPolicy *policy)
     }
 }
 
-static dbus_bool_t
-add_list_to_client (DBusList        **list,
-                    BusClientPolicy  *client)
-{
-  DBusList *link;
-
-  link = _dbus_list_get_first_link (list);
-  while (link != NULL)
-    {
-      BusPolicyRule *rule = link->data;
-      link = _dbus_list_get_next_link (list, link);
-
-      switch (rule->type)
-        {
-        case BUS_POLICY_RULE_USER:
-        case BUS_POLICY_RULE_GROUP:
-          /* These aren't per-connection policies */
-          break;
-
-        case BUS_POLICY_RULE_OWN:
-        case BUS_POLICY_RULE_SEND:
-        case BUS_POLICY_RULE_RECEIVE:
-          /* These are per-connection */
-          if (!bus_client_policy_append_rule (client, rule))
-            return FALSE;
-          break;
-
-        default:
-          _dbus_assert_not_reached ("invalid rule");
-        }
-    }
-  
-  return TRUE;
-}
-
 BusClientPolicy*
 bus_policy_create_client_policy (BusPolicy      *policy,
                                  DBusConnection *connection,
                                  DBusError      *error)
 {
   BusClientPolicy *client;
-  dbus_uid_t uid;
-  dbus_bool_t at_console;
 
   _dbus_assert (dbus_connection_get_is_authenticated (connection));
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
@@ -294,82 +266,22 @@ bus_policy_create_client_policy (BusPolicy      *policy,
   if (client == NULL)
     goto nomem;
 
-  if (!add_list_to_client (&policy->default_rules,
-                           client))
-    goto nomem;
-
-  /* we avoid the overhead of looking up user's groups
-   * if we don't have any group rules anyway
-   */
   if (_dbus_hash_table_get_n_entries (policy->rules_by_gid) > 0)
     {
-      unsigned long *groups;
-      int n_groups;
-      int i;
-      
-      if (!bus_connection_get_unix_groups (connection, &groups, &n_groups, error))
+      if (!bus_connection_get_unix_groups (connection, &client->groups, &client->n_groups, error))
         goto failed;
-      
-      i = 0;
-      while (i < n_groups)
-        {
-          DBusList **list;
-          
-          list = _dbus_hash_table_lookup_uintptr (policy->rules_by_gid,
-                                                groups[i]);
-          
-          if (list != NULL)
-            {
-              if (!add_list_to_client (list, client))
-                {
-                  dbus_free (groups);
-                  goto nomem;
-                }
-            }
-          
-          ++i;
-        }
-
-      dbus_free (groups);
     }
   
-  if (dbus_connection_get_unix_user (connection, &uid))
+  if (dbus_connection_get_unix_user (connection, &client->uid))
     {
-      if (_dbus_hash_table_get_n_entries (policy->rules_by_uid) > 0)
-        {
-          DBusList **list;
-          
-          list = _dbus_hash_table_lookup_uintptr (policy->rules_by_uid,
-                                                uid);
-          
-          if (list != NULL)
-            {
-              if (!add_list_to_client (list, client))
-                goto nomem;
-            }
-        }
-
-      /* Add console rules */
-      at_console = _dbus_unix_user_is_at_console (uid, error);
+      client->uid_set = TRUE;
+      client->at_console = _dbus_unix_user_is_at_console (client->uid, error);
       
-      if (at_console)
-        {
-          if (!add_list_to_client (&policy->at_console_true_rules, client))
-            goto nomem;
-        }
-      else if (dbus_error_is_set (error) == TRUE)
-        {
+      if (dbus_error_is_set (error) == TRUE)
           goto failed;
-        }
-      else if (!add_list_to_client (&policy->at_console_false_rules, client))
-        {
-          goto nomem;
-        }
     }
 
-  if (!add_list_to_client (&policy->mandatory_rules,
-                           client))
-    goto nomem;
+  client->policy = bus_policy_ref (policy);
 
   return client;
 
@@ -697,13 +609,6 @@ bus_policy_merge (BusPolicy *policy,
   return TRUE;
 }
 
-struct BusClientPolicy
-{
-  int refcount;
-
-  DBusList *rules;
-};
-
 BusClientPolicy*
 bus_client_policy_new (void)
 {
@@ -728,15 +633,6 @@ bus_client_policy_ref (BusClientPolicy *policy)
   return policy;
 }
 
-static void
-rule_unref_foreach (void *data,
-                    void *user_data)
-{
-  BusPolicyRule *rule = data;
-
-  bus_policy_rule_unref (rule);
-}
-
 void
 bus_client_policy_unref (BusClientPolicy *policy)
 {
@@ -746,29 +642,13 @@ bus_client_policy_unref (BusClientPolicy *policy)
 
   if (policy->refcount == 0)
     {
-      _dbus_list_foreach (&policy->rules,
-                          rule_unref_foreach,
-                          NULL);
+      if (policy->policy)
+        bus_policy_unref (policy->policy);
 
-      _dbus_list_clear (&policy->rules);
+      dbus_free (policy->groups);
 
       dbus_free (policy);
     }
-}
-
-static dbus_bool_t
-bus_client_policy_append_rule (BusClientPolicy *policy,
-                               BusPolicyRule   *rule)
-{
-  _dbus_verbose ("Appending rule %p with type %d to policy %p\n",
-                 rule, rule->type, policy);
-  
-  if (!_dbus_list_append (&policy->rules, rule))
-    return FALSE;
-
-  bus_policy_rule_ref (rule);
-
-  return TRUE;
 }
 
 typedef struct SendReceiveParams {
@@ -1267,6 +1147,78 @@ check_rules_list (const DBusList   *rules,
   return allowed;
 }
 
+static dbus_bool_t
+check_policy (BusClientPolicy  *policy,
+              const RuleParams *params,
+              dbus_int32_t     *toggles,
+              dbus_bool_t      *log)
+{
+  dbus_bool_t allowed;
+
+  if (toggles)
+    *toggles = 0;
+
+  /* policy->rules is in the order the rules appeared
+   * in the config file, i.e. last rule that applies wins
+   */
+
+  allowed = check_rules_list (policy->policy->default_rules,
+                              params,
+                              toggles,
+                              log);
+
+  /* we avoid the overhead of looking up user's groups
+   * if we don't have any group rules anyway
+   */
+  if (_dbus_hash_table_get_n_entries (policy->policy->rules_by_gid) > 0)
+    {
+      int i;
+
+      for (i = 0; i < policy->n_groups; ++i)
+        {
+          const DBusList **list;
+
+          list = _dbus_hash_table_lookup_uintptr (policy->policy->rules_by_gid,
+                                                  policy->groups[i]);
+
+          if (list != NULL)
+            allowed = check_rules_list (*list, params, toggles, log);
+        }
+    }
+
+  if (policy->uid_set)
+    {
+      if (_dbus_hash_table_get_n_entries (policy->policy->rules_by_uid) > 0)
+        {
+          const DBusList **list;
+
+          list = _dbus_hash_table_lookup_uintptr (policy->policy->rules_by_uid,
+                                                  policy->uid);
+
+          if (list != NULL)
+            allowed = check_rules_list (*list, params, toggles, log);
+
+          if (policy->at_console)
+            allowed = check_rules_list (policy->policy->at_console_true_rules,
+                                        params,
+                                        toggles,
+                                        log);
+          else
+            allowed = check_rules_list (policy->policy->at_console_false_rules,
+                                        params,
+                                        toggles,
+                                        log);
+        }
+    }
+
+  allowed = check_rules_list (policy->policy->mandatory_rules,
+                              params,
+                              toggles,
+                              log);
+
+  return allowed;
+}
+
 dbus_bool_t
 bus_client_policy_check_can_send (BusClientPolicy *policy,
                                   BusRegistry     *registry,
@@ -1284,14 +1236,9 @@ bus_client_policy_check_can_send (BusClientPolicy *policy,
   params.u.sr.peer = receiver;
   params.u.sr.message = message;
 
-  /* policy->rules is in the order the rules appeared
-   * in the config file, i.e. last rule that applies wins
-   */
-
   _dbus_verbose ("  (policy) checking send rules\n");
-  *toggles = 0;
 
-  return check_rules_list (policy->rules, &params, toggles, log);
+  return check_policy (policy, &params, toggles, log);
 }
 
 /* See docs on what the args mean on bus_context_check_security_policy()
@@ -1318,37 +1265,20 @@ bus_client_policy_check_can_receive (BusClientPolicy *policy,
     addressed_recipient != proposed_recipient &&
     dbus_message_get_destination (message) != NULL;
 
-  /* policy->rules is in the order the rules appeared
-   * in the config file, i.e. last rule that applies wins
-   */
-
   _dbus_verbose ("  (policy) checking receive rules, eavesdropping = %d\n", params.u.sr.eavesdropping);
-  *toggles = 0;
 
-  return check_rules_list (policy->rules, &params, toggles, NULL);
-}
-
-static dbus_bool_t
-bus_rules_check_can_own (DBusList         *rules,
-                         const DBusString *service_name)
-{
-  RuleParams params;
-
-  params.type = PARAMS_OWN;
-  params.u.own.name = service_name;
-  
-  /* policy->rules is in the order the rules appeared
-   * in the config file, i.e. last rule that applies wins
-   */
-
-  return check_rules_list (rules, &params, NULL, NULL);
+  return check_policy (policy, &params, toggles, NULL);
 }
 
 dbus_bool_t
 bus_client_policy_check_can_own (BusClientPolicy  *policy,
                                  const DBusString *service_name)
 {
-  return bus_rules_check_can_own (policy->rules, service_name);
+  RuleParams params;
+  params.type = PARAMS_OWN;
+  params.u.own.name = service_name;
+
+  return check_policy (policy, &params, NULL, NULL);
 }
 
 #ifdef DBUS_ENABLE_EMBEDDED_TESTS
@@ -1356,6 +1286,10 @@ dbus_bool_t
 bus_policy_check_can_own (BusPolicy  *policy,
                           const DBusString *service_name)
 {
-  return bus_rules_check_can_own (policy->default_rules, service_name);
+  RuleParams params;
+  params.type = PARAMS_OWN;
+  params.u.own.name = service_name;
+
+  return check_rules_list (policy->default_rules, &params, NULL, NULL);
 }
 #endif /* DBUS_ENABLE_EMBEDDED_TESTS */
