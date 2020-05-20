@@ -771,24 +771,29 @@ bus_client_policy_append_rule (BusClientPolicy *policy,
   return TRUE;
 }
 
-struct MatchSendRuleParams {
-  BusRegistry    *registry;
-  dbus_bool_t     requested_reply;
-  DBusConnection *receiver;
-  DBusMessage    *message;
-};
+typedef struct SendReceiveParams {
+    BusRegistry    *registry;
+    dbus_bool_t     requested_reply;
+    DBusConnection *peer;
+    DBusMessage    *message;
+    dbus_bool_t     eavesdropping;
+} SendReceiveParams;
 
-struct MatchReceiveRuleParams {
-  BusRegistry    *registry;
-  dbus_bool_t     requested_reply;
-  DBusConnection *sender;
-  DBusMessage    *message;
-  dbus_bool_t     eavesdropping;
-};
+typedef struct OwnParams {
+    const DBusString *name;
+} OwnParams;
+
+typedef struct RuleParams {
+  enum {PARAMS_OWN, PARAMS_SEND, PARAMS_RECEIVE} type;
+  union {
+    SendReceiveParams sr;
+    OwnParams         own;
+  } u;
+} RuleParams;
 
 static dbus_bool_t
-check_send_rule (const BusPolicyRule  *rule,
-                 const struct MatchSendRuleParams *match_params)
+check_send_rule (const BusPolicyRule     *rule,
+                 const SendReceiveParams *match_params)
 {
   /* Rule is skipped if it specifies a different
    * message name from the message, or a different
@@ -919,7 +924,7 @@ check_send_rule (const BusPolicyRule  *rule,
        * on the assumption that the activated service will have the
        * requested name and no others.
        */
-      if (match_params->receiver == NULL)
+      if (match_params->peer == NULL)
         {
           if (!dbus_message_has_destination (match_params->message,
                                              rule->d.send.destination))
@@ -944,7 +949,7 @@ check_send_rule (const BusPolicyRule  *rule,
               return FALSE;
             }
 
-          if (!bus_service_owner_in_queue (service, match_params->receiver))
+          if (!bus_service_owner_in_queue (service, match_params->peer))
             {
               _dbus_verbose ("  (policy) skipping rule because receiver isn't primary or queued owner of name %s\n",
                              rule->d.send.destination);
@@ -956,7 +961,7 @@ check_send_rule (const BusPolicyRule  *rule,
   if (rule->d.send.destination != NULL && rule->d.send.destination_is_prefix)
     {
       /* receiver can be NULL - the same as in !send.destination_is_prefix */
-      if (match_params->receiver == NULL)
+      if (match_params->peer == NULL)
         {
           const char *destination = dbus_message_get_destination (match_params->message);
           DBusString dest_name;
@@ -980,7 +985,7 @@ check_send_rule (const BusPolicyRule  *rule,
         }
       else
         {
-          if (!bus_connection_is_queued_owner_by_prefix (match_params->receiver,
+          if (!bus_connection_is_queued_owner_by_prefix (match_params->peer,
                                                          rule->d.send.destination))
             {
               _dbus_verbose ("  (policy) skipping rule because recipient isn't primary or queued owner of any name below %s\n",
@@ -1009,8 +1014,8 @@ check_send_rule (const BusPolicyRule  *rule,
 }
 
 static dbus_bool_t
-check_receive_rule (const BusPolicyRule  *rule,
-                    const struct MatchReceiveRuleParams *match_params)
+check_receive_rule (const BusPolicyRule     *rule,
+                    const SendReceiveParams *match_params)
 {
   if (rule->type != BUS_POLICY_RULE_RECEIVE)
     {
@@ -1130,7 +1135,7 @@ check_receive_rule (const BusPolicyRule  *rule,
        * built-in services don't have a DBusConnection but will
        * still set the sender on their messages.
        */
-      if (match_params->sender == NULL)
+      if (match_params->peer == NULL)
         {
           if (!dbus_message_has_sender (match_params->message,
                                         rule->d.receive.origin))
@@ -1156,7 +1161,7 @@ check_receive_rule (const BusPolicyRule  *rule,
               return FALSE;
             }
 
-          if (!bus_service_owner_in_queue (service, match_params->sender))
+          if (!bus_service_owner_in_queue (service, match_params->peer))
             {
               _dbus_verbose ("  (policy) skipping rule because sender isn't primary or queued owner of %s\n",
                              rule->d.receive.origin);
@@ -1186,8 +1191,10 @@ check_receive_rule (const BusPolicyRule  *rule,
 
 static dbus_bool_t
 check_own_rule (const BusPolicyRule *rule,
-                const DBusString    *service_name)
+                const OwnParams     *params)
 {
+  const DBusString *service_name = params->name;
+
   /* Rule is skipped if it specifies a different service name from
    * the desired one.
    */
@@ -1213,6 +1220,53 @@ check_own_rule (const BusPolicyRule *rule,
   return TRUE;
 }
 
+static dbus_bool_t
+check_rules_list (const DBusList   *rules,
+                  const RuleParams *params,
+                  dbus_int32_t     *toggles,
+                  dbus_bool_t      *log)
+{
+  const DBusList *link;
+  dbus_bool_t allowed;
+
+  link = _dbus_list_get_first_link ((DBusList **)&rules);
+  while (link != NULL)
+    {
+      const BusPolicyRule *rule = link->data;
+      dbus_bool_t matches;
+
+      link = _dbus_list_get_next_link ((DBusList **)&rules, link);
+
+      switch (params->type)
+        {
+          case PARAMS_OWN:
+            matches = check_own_rule (rule, &params->u.own);
+            break;
+          case PARAMS_SEND:
+            matches = check_send_rule (rule, &params->u.sr);
+            break;
+          case PARAMS_RECEIVE:
+            matches = check_receive_rule (rule, &params->u.sr);
+            break;
+          default:
+            _dbus_assert_not_reached ("wrong type of policy");
+        }
+
+      if (matches)
+        {
+          if (log)
+            *log = rule->d.send.log;
+          if (toggles)
+            (*toggles)++;
+          allowed = rule->allow;
+
+          _dbus_verbose ("  (policy) used rule, allow now = %d\n",
+                         allowed);
+        }
+    }
+  return allowed;
+}
+
 dbus_bool_t
 bus_client_policy_check_can_send (BusClientPolicy *policy,
                                   BusRegistry     *registry,
@@ -1222,15 +1276,13 @@ bus_client_policy_check_can_send (BusClientPolicy *policy,
                                   dbus_int32_t    *toggles,
                                   dbus_bool_t     *log)
 {
-  DBusList *link;
-  dbus_bool_t allowed;
-  
-  struct MatchSendRuleParams params;
+  struct RuleParams params;
 
-  params.registry = registry;
-  params.requested_reply = requested_reply;
-  params.receiver = receiver;
-  params.message = message;
+  params.type = PARAMS_SEND;
+  params.u.sr.registry = registry;
+  params.u.sr.requested_reply = requested_reply;
+  params.u.sr.peer = receiver;
+  params.u.sr.message = message;
 
   /* policy->rules is in the order the rules appeared
    * in the config file, i.e. last rule that applies wins
@@ -1238,27 +1290,8 @@ bus_client_policy_check_can_send (BusClientPolicy *policy,
 
   _dbus_verbose ("  (policy) checking send rules\n");
   *toggles = 0;
-  
-  allowed = FALSE;
-  link = _dbus_list_get_first_link (&policy->rules);
-  while (link != NULL)
-    {
-      const BusPolicyRule *rule = link->data;
 
-      link = _dbus_list_get_next_link (&policy->rules, link);
-
-      if (check_send_rule (rule, &params))
-        {
-          allowed = rule->allow;
-          *log = rule->d.send.log;
-          (*toggles)++;
-
-          _dbus_verbose ("  (policy) used rule, allow now = %d\n",
-                         allowed);
-        }
-    }
-
-  return allowed;
+  return check_rules_list (policy->rules, &params, toggles, log);
 }
 
 /* See docs on what the args mean on bus_context_check_security_policy()
@@ -1274,73 +1307,41 @@ bus_client_policy_check_can_receive (BusClientPolicy *policy,
                                      DBusMessage     *message,
                                      dbus_int32_t    *toggles)
 {
-  DBusList *link;
-  dbus_bool_t allowed;
-  struct MatchReceiveRuleParams params;
+  struct RuleParams params;
 
-  params.eavesdropping =
+  params.type = PARAMS_RECEIVE;
+  params.u.sr.registry = registry;
+  params.u.sr.requested_reply = requested_reply;
+  params.u.sr.peer = sender;
+  params.u.sr.message = message;
+  params.u.sr.eavesdropping =
     addressed_recipient != proposed_recipient &&
     dbus_message_get_destination (message) != NULL;
-  params.registry = registry;
-  params.requested_reply = requested_reply;
-  params.sender = sender;
-  params.message = message;
 
   /* policy->rules is in the order the rules appeared
    * in the config file, i.e. last rule that applies wins
    */
 
-  _dbus_verbose ("  (policy) checking receive rules, eavesdropping = %d\n", params.eavesdropping);
+  _dbus_verbose ("  (policy) checking receive rules, eavesdropping = %d\n", params.u.sr.eavesdropping);
   *toggles = 0;
-  
-  allowed = FALSE;
-  link = _dbus_list_get_first_link (&policy->rules);
-  while (link != NULL)
-    {
-      const BusPolicyRule *rule = link->data;
 
-      link = _dbus_list_get_next_link (&policy->rules, link);
-
-      if (check_receive_rule (rule, &params))
-        {
-          allowed = rule->allow;
-          (*toggles)++;
-
-          _dbus_verbose ("  (policy) used rule, allow now = %d\n",
-                         allowed);
-        }
-
-    }
-
-  return allowed;
+  return check_rules_list (policy->rules, &params, toggles, NULL);
 }
 
 static dbus_bool_t
-bus_rules_check_can_own (DBusList *rules,
+bus_rules_check_can_own (DBusList         *rules,
                          const DBusString *service_name)
 {
-  DBusList *link;
-  dbus_bool_t allowed;
+  RuleParams params;
+
+  params.type = PARAMS_OWN;
+  params.u.own.name = service_name;
   
-  /* rules is in the order the rules appeared
+  /* policy->rules is in the order the rules appeared
    * in the config file, i.e. last rule that applies wins
    */
 
-  allowed = FALSE;
-  link = _dbus_list_get_first_link (&rules);
-  while (link != NULL)
-    {
-      const BusPolicyRule *rule = link->data;
-
-      link = _dbus_list_get_next_link (&rules, link);
-      
-      if (check_own_rule (rule, service_name))
-        {
-          allowed = rule->allow;
-        }
-    }
-
-  return allowed;
+  return check_rules_list (rules, &params, NULL, NULL);
 }
 
 dbus_bool_t
