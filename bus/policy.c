@@ -30,6 +30,7 @@
 #include <dbus/dbus-hash.h>
 #include <dbus/dbus-internals.h>
 #include <dbus/dbus-message-internal.h>
+#include <dbus/dbus-connection-internal.h>
 
 struct BusClientPolicy
 {
@@ -149,7 +150,16 @@ struct BusPolicy
   DBusHashTable *rules_by_gid;     /**< per-GID policy rules */
   DBusList *at_console_true_rules; /**< console user policy rules where at_console="true"*/
   DBusList *at_console_false_rules; /**< console user policy rules where at_console="false"*/
+
+  DBusHashTable *default_rules_by_name;
+  unsigned int n_default_rules;
 };
+
+typedef struct BusPolicyRulesWithScore
+{
+  DBusList *rules;
+  int score;
+} BusPolicyRulesWithScore;
 
 static void
 free_rule_func (void *data,
@@ -175,6 +185,21 @@ free_rule_list_func (void *data)
   dbus_free (list);
 }
 
+static void
+free_rule_list_with_score_func (void *data)
+{
+  BusPolicyRulesWithScore *rules = data;
+
+  if (rules == NULL)
+    return;
+
+  _dbus_list_foreach (&rules->rules, free_rule_func, NULL);
+
+  _dbus_list_clear (&rules->rules);
+
+  dbus_free (rules);
+}
+
 BusPolicy*
 bus_policy_new (void)
 {
@@ -196,6 +221,12 @@ bus_policy_new (void)
                                                NULL,
                                                free_rule_list_func);
   if (policy->rules_by_gid == NULL)
+    goto failed;
+
+  policy->default_rules_by_name = _dbus_hash_table_new (DBUS_HASH_STRING,
+                                                        NULL,
+                                                        free_rule_list_with_score_func);
+  if (policy->default_rules_by_name == NULL)
     goto failed;
 
   return policy;
@@ -247,7 +278,13 @@ bus_policy_unref (BusPolicy *policy)
           _dbus_hash_table_unref (policy->rules_by_gid);
           policy->rules_by_gid = NULL;
         }
-      
+
+      if (policy->default_rules_by_name)
+        {
+          _dbus_hash_table_unref (policy->default_rules_by_name);
+          policy->default_rules_by_name = NULL;
+        }
+
       dbus_free (policy);
     }
 }
@@ -407,12 +444,74 @@ bus_policy_allow_windows_user (BusPolicy        *policy,
   return _dbus_windows_user_is_process_owner (windows_sid);
 }
 
+static BusPolicyRulesWithScore *
+get_rules_by_string (DBusHashTable *hash,
+                    const char    *key)
+{
+  BusPolicyRulesWithScore *rules;
+
+  rules = _dbus_hash_table_lookup_string (hash, key);
+  if (rules == NULL)
+    {
+      rules = dbus_new0 (BusPolicyRulesWithScore, 1);
+      if (rules == NULL)
+        return NULL;
+
+      if (!_dbus_hash_table_insert_string (hash, (char *)key, rules))
+        {
+          dbus_free (rules);
+          return NULL;
+        }
+    }
+
+  return rules;
+}
+
+static const char *
+get_name_from_rule (BusPolicyRule *rule)
+{
+  const char *name = NULL;
+  if (rule->type == BUS_POLICY_RULE_SEND)
+    name = rule->d.send.destination;
+  else if (rule->type == BUS_POLICY_RULE_RECEIVE)
+    name = rule->d.receive.origin;
+  else if (rule->type == BUS_POLICY_RULE_OWN)
+    name = rule->d.own.service_name;
+
+  if (name == NULL)
+    name = "";
+
+  return name;
+}
+
 dbus_bool_t
 bus_policy_append_default_rule (BusPolicy      *policy,
                                 BusPolicyRule  *rule)
 {
-  if (!_dbus_list_append (&policy->default_rules, rule))
-    return FALSE;
+  if (rule->type == BUS_POLICY_RULE_USER || rule->type == BUS_POLICY_RULE_GROUP)
+    {
+      if (!_dbus_list_append (&policy->default_rules, rule))
+        return FALSE;
+    }
+  else
+    {
+      DBusList **list;
+      BusPolicyRulesWithScore *rules;
+
+      rules = get_rules_by_string (policy->default_rules_by_name,
+                                   get_name_from_rule (rule));
+
+      if (rules == NULL)
+        return FALSE;
+
+      list = &rules->rules;
+
+      if (!_dbus_list_prepend (list, rule))
+        return FALSE;
+
+      rule->score = ++policy->n_default_rules;
+      rules->score = rule->score;
+    }
 
   bus_policy_rule_ref (rule);
 
@@ -574,6 +673,64 @@ merge_id_hash (DBusHashTable *dest,
   return TRUE;
 }
 
+static dbus_bool_t
+merge_string_hash (unsigned int *n_rules,
+                   unsigned int n_rules_to_absorb,
+                   DBusHashTable *dest,
+                   DBusHashTable *to_absorb)
+{
+  DBusHashIter iter;
+#ifndef DBUS_DISABLE_ASSERT
+  unsigned cnt_rules = 0;
+#endif
+
+  _dbus_hash_iter_init (to_absorb, &iter);
+  while (_dbus_hash_iter_next (&iter))
+    {
+      const char *id = _dbus_hash_iter_get_string_key (&iter);
+      BusPolicyRulesWithScore *to_absorb_rules =_dbus_hash_iter_get_value (&iter);
+      DBusList **list = &to_absorb_rules->rules;
+      BusPolicyRulesWithScore *target_rules = get_rules_by_string (dest, id);
+      DBusList **target;
+      DBusList *list_iter;
+      DBusList *target_first_link;
+
+      if (target_rules == NULL)
+        return FALSE;
+
+      target = &target_rules->rules;
+      target_first_link = _dbus_list_get_first_link (target);
+
+      list_iter = _dbus_list_get_first_link (list);
+      while (list_iter != NULL)
+        {
+          DBusList *new_link;
+          BusPolicyRule *rule = list_iter->data;
+
+          rule->score += *n_rules;
+          list_iter = _dbus_list_get_next_link (list, list_iter);
+#ifndef DBUS_DISABLE_ASSERT
+          cnt_rules++;
+#endif
+          new_link = _dbus_list_alloc_link (rule);
+          if (new_link == NULL)
+            return FALSE;
+
+          bus_policy_rule_ref (rule);
+
+          _dbus_list_insert_before_link (target, target_first_link, new_link);
+        }
+
+      target_rules->score = to_absorb_rules->score + *n_rules;
+    }
+
+  _dbus_assert (n_rules_to_absorb == cnt_rules);
+
+  *n_rules += n_rules_to_absorb;
+
+  return TRUE;
+}
+
 dbus_bool_t
 bus_policy_merge (BusPolicy *policy,
                   BusPolicy *to_absorb)
@@ -604,6 +761,12 @@ bus_policy_merge (BusPolicy *policy,
   
   if (!merge_id_hash (policy->rules_by_gid,
                       to_absorb->rules_by_gid))
+    return FALSE;
+
+  if (!merge_string_hash (&policy->n_default_rules,
+                          to_absorb->n_default_rules,
+                          policy->default_rules_by_name,
+                          to_absorb->default_rules_by_name))
     return FALSE;
 
   return TRUE;
@@ -1101,13 +1264,18 @@ check_own_rule (const BusPolicyRule *rule,
 }
 
 static dbus_bool_t
-check_rules_list (const DBusList   *rules,
-                  const RuleParams *params,
-                  dbus_int32_t     *toggles,
-                  dbus_bool_t      *log)
+check_rules_list (const DBusList       *rules,
+                  dbus_bool_t           allowed_current,
+                  const RuleParams     *params,
+                  dbus_int32_t         *toggles,
+                  dbus_bool_t          *log,
+                  const BusPolicyRule **matched_rule,
+                  dbus_bool_t           break_on_first_match)
 {
   const DBusList *link;
   dbus_bool_t allowed;
+
+  allowed = allowed_current;
 
   link = _dbus_list_get_first_link ((DBusList **)&rules);
   while (link != NULL)
@@ -1138,12 +1306,171 @@ check_rules_list (const DBusList   *rules,
             *log = rule->d.send.log;
           if (toggles)
             (*toggles)++;
+          if (matched_rule)
+            *matched_rule = rule;
           allowed = rule->allow;
 
           _dbus_verbose ("  (policy) used rule, allow now = %d\n",
                          allowed);
+
+          if (break_on_first_match)
+            break;
         }
     }
+  return allowed;
+}
+
+static int
+check_rules_for_name (DBusHashTable        *rules,
+                      const char           *name,
+                      int                   score,
+                      const RuleParams     *params,
+                      dbus_int32_t         *toggles,
+                      dbus_bool_t          *log,
+                      const BusPolicyRule **matched_rule)
+{
+  dbus_int32_t local_toggles;
+  dbus_bool_t local_log;
+  const BusPolicyRule *local_matched_rule;
+  const BusPolicyRulesWithScore *rules_list;
+
+  rules_list = _dbus_hash_table_lookup_string (rules, name);
+
+  if (rules_list == NULL || rules_list->score <= score)
+    return score;
+
+  local_toggles = 0;
+
+  check_rules_list (rules_list->rules,
+                    FALSE,
+                    params,
+                    &local_toggles,
+                    &local_log,
+                    &local_matched_rule,
+                    TRUE);
+
+  if (local_toggles > 0)
+    {
+      _dbus_assert (local_matched_rule != NULL);
+
+      if (local_matched_rule->score > score)
+        {
+          if (toggles)
+            *toggles += local_toggles;
+          if (log)
+            *log = local_log;
+          if (matched_rule)
+            *matched_rule = local_matched_rule;
+          return local_matched_rule->score;
+        }
+    }
+
+  return score;
+}
+
+static int
+find_and_check_rules_for_name (DBusHashTable        *rules,
+                               const char           *c_str,
+                               int                   score,
+                               const RuleParams     *params,
+                               dbus_int32_t         *toggles,
+                               dbus_bool_t          *log,
+                               const BusPolicyRule **matched_rule)
+{
+  char name[DBUS_MAXIMUM_NAME_LENGTH+2];
+  int pos = strlen(c_str);
+
+  _dbus_assert (pos <= DBUS_MAXIMUM_NAME_LENGTH);
+
+  strncpy (name, c_str, sizeof(name)-1);
+
+  /*
+   * To check 'prefix' rules we not only need to check a name,
+   * but also every prefix of the name. For example,
+   * if name is 'foo.bar.baz.qux' we need to check rules for:
+   * - foo.bar.baz.qux
+   * - foo.bar.baz
+   * - foo.bar
+   * - foo
+   */
+  while (pos > 0)
+    {
+      score = check_rules_for_name (rules, name,
+                                    score, params,
+                                    toggles, log,
+                                    matched_rule);
+
+      /* strip the last component for next iteration */
+      while (pos > 0 && name[pos] != '.')
+        pos--;
+
+      name[pos] = 0;
+    }
+
+  return score;
+}
+
+static dbus_bool_t
+find_and_check_rules (DBusHashTable    *rules,
+                      const RuleParams *params,
+                      dbus_int32_t     *toggles,
+                      dbus_bool_t      *log)
+{
+  dbus_bool_t allowed;
+  const DBusList *services = NULL;
+  const BusPolicyRule *matched_rule = NULL;
+  int score = 0;
+
+  allowed = FALSE;
+
+  if (params->type == PARAMS_SEND || params->type == PARAMS_RECEIVE)
+    {
+      if (params->u.sr.peer != NULL)
+        {
+          DBusList *link;
+
+          services = bus_connection_get_owned_services_list (params->u.sr.peer);
+
+          link = _dbus_list_get_first_link ((DBusList **)&services);
+          while (link != NULL)
+            {
+              const char *name = bus_service_get_name (link->data);
+
+              link = _dbus_list_get_next_link ((DBusList **)&services, link);
+
+              /* skip unique id names */
+              if (name[0] == ':')
+                continue;
+
+              score = find_and_check_rules_for_name (rules, name, score,
+                                                     params, toggles, log, &matched_rule);
+            }
+        }
+      else
+        {
+          /* NULL peer means dbus-daemon or activation */
+          const char *rule_target_name;
+
+          if (params->type == PARAMS_SEND)
+            rule_target_name = dbus_message_get_destination (params->u.sr.message);
+          else if (params->type == PARAMS_RECEIVE)
+            rule_target_name = dbus_message_get_sender (params->u.sr.message);
+
+          if (rule_target_name != NULL)
+            score = find_and_check_rules_for_name (rules, rule_target_name, score,
+                                                   params, toggles, log, &matched_rule);
+        }
+    }
+  else
+    score = find_and_check_rules_for_name (rules, _dbus_string_get_const_data(params->u.own.name),
+                                           score, params, toggles, log, &matched_rule);
+
+  /* check also wildcard rules */
+  check_rules_for_name (rules, "", score, params, toggles, log, &matched_rule);
+
+  if (matched_rule)
+    allowed = matched_rule->allow;
+
   return allowed;
 }
 
@@ -1158,14 +1485,12 @@ check_policy (BusClientPolicy  *policy,
   if (toggles)
     *toggles = 0;
 
-  /* policy->rules is in the order the rules appeared
-   * in the config file, i.e. last rule that applies wins
-   */
+  allowed = find_and_check_rules (policy->policy->default_rules_by_name,
+                                  params,
+                                  toggles,
+                                  log);
 
-  allowed = check_rules_list (policy->policy->default_rules,
-                              params,
-                              toggles,
-                              log);
+  _dbus_verbose("checked, allow now = %d\n", allowed);
 
   /* we avoid the overhead of looking up user's groups
    * if we don't have any group rules anyway
@@ -1182,7 +1507,7 @@ check_policy (BusClientPolicy  *policy,
                                                   policy->groups[i]);
 
           if (list != NULL)
-            allowed = check_rules_list (*list, params, toggles, log);
+            allowed = check_rules_list (*list, allowed, params, toggles, log, NULL, FALSE);
         }
     }
 
@@ -1196,25 +1521,34 @@ check_policy (BusClientPolicy  *policy,
                                                   policy->uid);
 
           if (list != NULL)
-            allowed = check_rules_list (*list, params, toggles, log);
+            allowed = check_rules_list (*list, allowed, params, toggles, log, NULL, FALSE);
 
           if (policy->at_console)
             allowed = check_rules_list (policy->policy->at_console_true_rules,
+                                        allowed,
                                         params,
                                         toggles,
-                                        log);
+                                        log,
+                                        NULL,
+                                        FALSE);
           else
             allowed = check_rules_list (policy->policy->at_console_false_rules,
+                                        allowed,
                                         params,
                                         toggles,
-                                        log);
+                                        log,
+                                        NULL,
+                                        FALSE);
         }
     }
 
   allowed = check_rules_list (policy->policy->mandatory_rules,
+                              allowed,
                               params,
                               toggles,
-                              log);
+                              log,
+                              NULL,
+                              FALSE);
 
   return allowed;
 }
@@ -1290,6 +1624,9 @@ bus_policy_check_can_own (BusPolicy  *policy,
   params.type = PARAMS_OWN;
   params.u.own.name = service_name;
 
-  return check_rules_list (policy->default_rules, &params, NULL, NULL);
+  return find_and_check_rules (policy->default_rules_by_name,
+                               &params,
+                               NULL,
+                               NULL);
 }
 #endif /* DBUS_ENABLE_EMBEDDED_TESTS */

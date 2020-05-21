@@ -57,7 +57,8 @@ struct BusPolicyRule
   BusPolicyRuleType type;
 
   unsigned int allow : 1; /**< #TRUE if this allows, #FALSE if it denies */
-  
+  unsigned int score : 20; /**< for keeping the importance of the rule */
+
   union
   {
     struct
