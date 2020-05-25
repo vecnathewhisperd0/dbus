@@ -2301,6 +2301,12 @@ free_cancel_hooks (BusTransaction *transaction)
  * @{
  */
 
+/**
+ * Creates a new instance of type @ref BusTransaction
+ *
+ * @param context bus context to add to the transaction
+ * @return allocated memory, or #NULL if the allocation fails.
+ */
 BusTransaction*
 bus_transaction_new (BusContext *context)
 {
@@ -2315,6 +2321,12 @@ bus_transaction_new (BusContext *context)
   return transaction;
 }
 
+/**
+ * Return bus context from the given @ref BusTransaction instance
+ *
+ * @param transaction transaction to get the context from
+ * @return bus context
+ */
 BusContext*
 bus_transaction_get_context (BusTransaction  *transaction)
 {
@@ -2619,6 +2631,11 @@ bus_transaction_send (BusTransaction *transaction,
   return TRUE;
 }
 
+/**
+ * Destroy @ref BusTransaction instance
+ *
+ * @param transaction instance to destroy
+ */
 static void
 bus_transaction_free (BusTransaction *transaction)
 {
