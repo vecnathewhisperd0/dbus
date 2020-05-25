@@ -50,6 +50,10 @@
 #include <signal.h>
 #endif
 
+/** @defgroup  BusInternals
+ * @brief Internals of the dbus server implementation
+ */
+
 struct BusContext
 {
   int refcount;

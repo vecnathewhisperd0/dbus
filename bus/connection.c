@@ -2248,6 +2248,59 @@ free_cancel_hooks (BusTransaction *transaction)
   _dbus_list_clear (&transaction->cancel_hooks);
 }
 
+/**
+ * @defgroup BusTransaction
+ * @ingroup  BusInternals
+ * @brief Symbolizes a unit of work performed within the dbus server
+ * and treated in a coherent and reliable way independent of other transactions
+ *
+ * The purpose of BusTransaction is to avoid this situation:
+ *
+ * - We dispatch a message
+ * - Dispatching that message results in new messages
+ *   -# it could be a message from a sender, through the dbus-daemon,
+ *      to one or more destinations (broadcast signals can go to several
+ *      destinations, and legacy eavesdropping and the more recent
+ *      monitoring can also result in unicast messages having to go
+ *      to more than one destination)
+ *   -# or it could be a message from a sender to the dbus-daemon itself
+ *      (the "bus driver", org.freedesktop.DBus) that sends other
+ *      messages as a side-effect (for example a successful RequestName()
+ *      results in NameOwnerChanged and NameAcquired signals, in addition
+ *      to the reply to RequestName)
+ * - We send one of the resulting messages (let's say M1), and it succeeds
+ * - We try to send another of the resulting messages (let's say M2), but
+ *   we run out of memory and cannot send it
+ * - Now what?
+ *   -# We can't take back M1, because we already sent it
+ *   -# We can't send M2, because we don't have enough memory
+ *   -# Sending M1 but not M2 would leave recipients with an inconsistent
+ *      view of the state of the world
+ *
+ * So, instead, we use transactions. They're conceptually similar to
+ * database transactions: you start with an empty transaction, you add
+ * actions (in our case messages), and eventually you either execute the
+ * transaction or cancel it (similar to committing or rolling back a
+ * database transaction).
+ * To make sure we have enough memory, every time we add a message, we
+ * preallocate enough memory to "send" that message. When we execute
+ * (commit) the transaction, we use that memory to "send" the messages.
+ * I say "send" here because dbus-daemon is not actually aware of the
+ * OS-level reality of what is happening to the messages: it's just
+ * using the libdbus abstractions. Even after we execute a BusTransaction,
+ * we still aren't actually physically sending the message! All we are
+ * doing is moving the message from the linked list in the BusTransaction
+ * to the linked list in the DBusConnection. We cannot actually start
+ * sending the message until there is enough space for at least its first
+ * byte in the AF_UNIX or TCP socket's buffers, which is determined by
+ * poll(), select() or epoll_wait() - and we cannot finish sending the
+ * message until there is enough space for its last byte, which might
+ * take a lot of iterations for a large message.
+ * This gap between dbus_connection_send() and OS-level send() is described
+ * in the @ref use_dbus_connection_send "DBusConnection introduction".
+ * @{
+ */
+
 BusTransaction*
 bus_transaction_new (BusContext *context)
 {
@@ -2536,6 +2589,8 @@ bus_transaction_free (BusTransaction *transaction)
   dbus_free (transaction);
 }
 
+/** @} */ /* end of BusTransaction */
+
 static void
 connection_cancel_transaction (DBusConnection *connection,
                                BusTransaction *transaction)
@@ -2564,6 +2619,11 @@ connection_cancel_transaction (DBusConnection *connection,
     }
 }
 
+/**
+ * @addtogroup BusTransaction
+ * @{
+ */
+
 void
 bus_transaction_cancel_and_free (BusTransaction *transaction)
 {
@@ -2579,6 +2639,8 @@ bus_transaction_cancel_and_free (BusTransaction *transaction)
 
   bus_transaction_free (transaction);
 }
+
+/** @} */ /* end of BusTransaction */
 
 static void
 connection_execute_transaction (DBusConnection *connection,
@@ -2618,6 +2680,11 @@ connection_execute_transaction (DBusConnection *connection,
     }
 }
 
+/**
+ * @addtogroup BusTransaction
+ * @{
+ */
+
 void
 bus_transaction_execute_and_free (BusTransaction *transaction)
 {
@@ -2633,6 +2700,8 @@ bus_transaction_execute_and_free (BusTransaction *transaction)
 
   bus_transaction_free (transaction);
 }
+
+/** @} */ /* end of BusTransaction */
 
 static void
 bus_connection_remove_transactions (DBusConnection *connection)
@@ -2653,6 +2722,11 @@ bus_connection_remove_transactions (DBusConnection *connection)
       message_to_send_free (connection, to_send);
     }
 }
+
+/**
+ * @addtogroup BusTransaction
+ * @{
+ */
 
 /**
  * Converts the DBusError to a message reply
@@ -2718,6 +2792,8 @@ bus_transaction_add_cancel_hook (BusTransaction               *transaction,
 
   return TRUE;
 }
+
+/** @} */ /* end of BusTransaction */
 
 int
 bus_connections_get_n_active (BusConnections *connections)
