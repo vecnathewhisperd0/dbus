@@ -2527,7 +2527,7 @@ bus_transaction_send (BusTransaction *transaction,
 }
 
 static void
-transaction_free (BusTransaction *transaction)
+bus_transaction_free (BusTransaction *transaction)
 {
   _dbus_assert (transaction->connections == NULL);
 
@@ -2577,7 +2577,7 @@ bus_transaction_cancel_and_free (BusTransaction *transaction)
   _dbus_list_foreach (&transaction->cancel_hooks,
                       cancel_hook_cancel, NULL);
 
-  transaction_free (transaction);
+  bus_transaction_free (transaction);
 }
 
 static void
@@ -2631,7 +2631,7 @@ bus_transaction_execute_and_free (BusTransaction *transaction)
   while ((connection = _dbus_list_pop_first (&transaction->connections)))
     connection_execute_transaction (connection, transaction);
 
-  transaction_free (transaction);
+  bus_transaction_free (transaction);
 }
 
 static void
