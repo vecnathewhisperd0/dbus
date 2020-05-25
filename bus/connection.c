@@ -2405,6 +2405,27 @@ out:
   return ret;
 }
 
+/**
+ * @brief Adds a message from the bus driver to be sent when the transaction is executed
+ *
+ * The function prepends a message from a bus driver to a transcation
+ * to be sent in a later main-loop iteration and does not expect
+ * to get a reply.
+ *
+ * If security policy doesn't allow the message, we would silently
+ * eat it; the driver doesn't care about getting a reply. However,
+ * if we're actively capturing messages, it's nice to log that we
+ * tried to send it and did not allow ourselves to do so.
+ *
+ *
+ * @param transaction transaction to prepend to message
+ * @param connection connection to send the message to
+ * @param message the message to send
+ * @return TRUE  message is added to transaction or ignored
+ * @return FALSE message is not added to the transaction
+ *
+ * See bus_transaction_send() and @ref BusTransaction for further details.
+ */
 dbus_bool_t
 bus_transaction_send_from_driver (BusTransaction *transaction,
                                   DBusConnection *connection,
@@ -2470,6 +2491,25 @@ bus_transaction_send_from_driver (BusTransaction *transaction,
   return bus_transaction_send (transaction, NULL, connection, message);
 }
 
+/**
+ * @brief Adds a message to be sent when the transaction is executed
+ *
+ * Add a message from @sender to the transaction. If there is enough
+ * memory to process the entire transaction, the message will be sent to
+ * @destination when the transaction is executed. If not, it will be dropped
+ * when the transaction is cancelled.
+ *
+ * If the destination is disconnected, the message is silently ignored.
+ * This is treated as a success, and #TRUE is returned.
+ *
+ * @param transaction transaction to prepend to message
+ * @param sender sender for the message
+ * @param destination where to send the message to
+ * @param message the message to send
+ * @return #TRUE on success, or #FALSE if not enough memory.
+ *
+ * See @ref BusTransaction for further details.
+ */
 dbus_bool_t
 bus_transaction_send (BusTransaction *transaction,
                       DBusConnection *sender,
