@@ -118,7 +118,7 @@ endif
 # (which it isn't currently)
 install-data-local:: doxygen.stamp
 	$(MKDIR_P) $(DESTDIR)$(apidir)
-	$(INSTALL_DATA) api/html/* $(DESTDIR)$(apidir)
+	cp -a api/html/* $(DESTDIR)$(apidir)
 if DBUS_QTHELP_DOCS_ENABLED
 	$(MKDIR_P) $(DESTDIR)$(qchdir)
 	$(INSTALL_DATA) $(DOXYGEN_QCH_FILE) $(DESTDIR)$(qchdir)
@@ -136,6 +136,7 @@ uninstall-local::
 	rm -f $(DESTDIR)$(apidir)/*.png
 	rm -f $(DESTDIR)$(apidir)/*.css
 	rm -f $(DESTDIR)$(apidir)/*.js
+	rm -f $(DESTDIR)$(apidir)/search/*
 	rm -f $(DESTDIR)$(htmldir)/*.css
 	rm -f $(DESTDIR)$(htmldir)/*.js
 	rm -f $(DESTDIR)$(htmldir)/*.html
