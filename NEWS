@@ -1,7 +1,35 @@
-dbus 1.10.30 (UNRELEASED)
+dbus 1.10.x end-of-life plans
 ==
 
-...
+The dbus 1.10.x branch was originally released in 2015. It currently
+receives security-fix releases whenever necessary, but it is planned to
+reach end-of-life status at the end of Debian 9's official security
+support (approximately July 2020). If you are a dbus downstream
+maintainer in a long-lived OS distribution and you want to use the
+upstream dbus-1.10 git branch as a place to share backported security
+fixes with other distributions, please contact the dbus maintainers via
+the dbus-security mailing list on lists.freedesktop.org.
+
+dbus 1.10.30 (2020-06-02)
+==
+
+The “centaur bus” release.
+
+Denial of service fixes:
+
+• CVE-2020-12049: If a message contains more file descriptors than can
+  be sent, close those that did get through before reporting error.
+  Previously, a local attacker could cause the system dbus-daemon (or
+  another system service with its own DBusServer) to run out of file
+  descriptors, by repeatedly connecting to the server and sending fds that
+  would get leaked.
+  Thanks to Kevin Backhouse of GitHub Security Lab.
+  (dbus#294, GHSL-2020-057; Simon McVittie)
+
+Other fixes:
+
+• Fix a crash when the dbus-daemon is terminated while one or more
+  monitors are active (dbus#291, dbus!140; Simon McVittie)
 
 dbus 1.10.28 (2019-06-11)
 ==
