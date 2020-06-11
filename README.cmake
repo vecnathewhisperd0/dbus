@@ -137,7 +137,7 @@ DBUS_DISABLE_CHECKS:BOOL=OFF
 DBUS_ENABLE_ANSI:BOOL=OFF
 
 // build DOXYGEN documentation (requires Doxygen)
-ENABLE_DOXYGEN_DOCS:STRING=OFF|ON|AUTO
+ENABLE_DOXYGEN_DOCS:STRING=OFF|ON|AUTO|FULL
 
 // build qt help documentation (requires qhelpgenerator(-qt5));
 // set INSTALL_QCH_DIR for custom qch installation path
