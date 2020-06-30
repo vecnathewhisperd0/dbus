@@ -122,9 +122,9 @@ _dbus_is_a_number (const DBusString *str,
  * @param uid the user ID or #DBUS_UID_UNSET
  * @param username username or #NULL 
  * @param error error to fill in
- * @returns the entry in the database
+ * @returns the entry in the database (borrowed, do not free)
  */
-DBusUserInfo*
+const DBusUserInfo *
 _dbus_user_database_lookup (DBusUserDatabase *db,
                             dbus_uid_t        uid,
                             const DBusString *username,
@@ -211,6 +211,8 @@ _dbus_user_database_lookup (DBusUserDatabase *db,
           return NULL;
         }
       
+      /* Return a borrowed pointer to the DBusUserInfo owned by the
+       * hash tables */
       return info;
     }
 }
