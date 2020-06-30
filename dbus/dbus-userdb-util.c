@@ -240,9 +240,9 @@ _dbus_get_user_id_and_primary_group (const DBusString  *username,
  * @param gid the group ID or #DBUS_GID_UNSET
  * @param groupname group name or #NULL 
  * @param error error to fill in
- * @returns the entry in the database
+ * @returns the entry in the database (borrowed, do not free)
  */
-DBusGroupInfo*
+const DBusGroupInfo *
 _dbus_user_database_lookup_group (DBusUserDatabase *db,
                                   dbus_gid_t        gid,
                                   const DBusString *groupname,
@@ -328,6 +328,8 @@ _dbus_user_database_lookup_group (DBusUserDatabase *db,
           return NULL;
         }
       
+      /* Return a borrowed reference to the DBusGroupInfo owned by the
+       * two hash tables */
       return info;
     }
 }
