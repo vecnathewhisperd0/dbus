@@ -1,7 +1,26 @@
 dbus 1.12.20 (UNRELEASED)
 =========================
 
-...
+The “temporary nemesis” release.
+
+Maybe security fixes:
+
+• On Unix, avoid a use-after-free if two usernames have the same
+  numeric uid. In older versions this could lead to a crash (denial of
+  service) or other undefined behaviour, possibly including incorrect
+  authorization decisions if <policy group=...> is used.
+  Like Unix filesystems, D-Bus' model of identity cannot distinguish
+  between users of different names with the same numeric uid, so this
+  configuration is not advisable on systems where D-Bus will be used.
+  Thanks to Daniel Onaca.
+  (dbus#305, dbus!166; Simon McVittie)
+
+Other fixes:
+
+• On Solaris and its derivatives, if a cmsg header is truncated, ensure
+  that we do not overrun the buffer used for fd-passing, even if the
+  kernel tells us to.
+  (dbus#304, dbus!165; Andy Fiddaman)
 
 dbus 1.12.18 (2020-06-02)
 =========================
