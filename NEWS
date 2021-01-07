@@ -1,14 +1,17 @@
-dbus 1.10.x end-of-life plans
+dbus 1.10.x end-of-life
 ==
 
-The dbus 1.10.x branch was originally released in 2015. It currently
-receives security-fix releases whenever necessary, but it is planned to
-reach end-of-life status at the end of Debian 9's official security
-support (approximately July 2020). If you are a dbus downstream
-maintainer in a long-lived OS distribution and you want to use the
-upstream dbus-1.10 git branch as a place to share backported security
-fixes with other distributions, please contact the dbus maintainers via
-the dbus-security mailing list on lists.freedesktop.org.
+The dbus 1.10.x branch was originally released in 2015 and reached
+end-of-life status in July 2020.
+
+If new security issues are discovered in dbus, they will not be fixed
+in the 1.10.x branch.
+
+If you are a dbus downstream maintainer in a long-lived OS distribution
+and you want to use the upstream dbus-1.10 git branch as a place
+to share backported security fixes with other distributions, please
+contact the dbus maintainers via the dbus-security mailing list on
+lists.freedesktop.org.
 
 dbus 1.10.32 (2020-07-02)
 ==
