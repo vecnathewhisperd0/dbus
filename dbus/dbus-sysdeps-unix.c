@@ -89,6 +89,10 @@
 #include <systemd/sd-daemon.h>
 #endif
 
+#ifdef DBUS_ENABLE_VSOCK
+#include <linux/vm_sockets.h>
+#endif
+
 #if !DBUS_USE_SYNC
 #include <pthread.h>
 #endif
@@ -4891,6 +4895,9 @@ _dbus_append_address_from_socket (DBusSocket  fd,
       struct sockaddr_un un;
       struct sockaddr_in ipv4;
       struct sockaddr_in6 ipv6;
+#ifdef DBUS_ENABLE_VSOCK
+      struct sockaddr_vm vm;
+#endif
   } socket;
   char hostip[INET6_ADDRSTRLEN];
   socklen_t size = sizeof (socket);
@@ -4962,7 +4969,20 @@ _dbus_append_address_from_socket (DBusSocket  fd,
         }
       /* not reached */
       break;
-
+#ifdef DBUS_ENABLE_VSOCK
+    case AF_VSOCK:
+      if (_dbus_string_append_printf (address, "vsock:cid=%u,port=%u",
+                                      socket.vm.svm_cid, socket.vm.svm_port))
+        {
+          return TRUE;
+        }
+      else
+        {
+          _DBUS_SET_OOM (error);
+          return FALSE;
+        }
+      break;
+#endif
     default:
       dbus_set_error (error,
                       _dbus_error_from_errno (EINVAL),
