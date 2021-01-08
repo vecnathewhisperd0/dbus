@@ -218,6 +218,7 @@ AC_ARG_ENABLE(console-owner-file, AS_HELP_STRING([--enable-console-owner-file],[
 AC_ARG_ENABLE(launchd, AS_HELP_STRING([--enable-launchd],[build with launchd auto-launch support]),enable_launchd=$enableval,enable_launchd=auto)
 AC_ARG_ENABLE(systemd, AS_HELP_STRING([--enable-systemd],[build with systemd at_console support]),enable_systemd=$enableval,enable_systemd=auto)
 AC_ARG_ENABLE(traditional-activation, AS_HELP_STRING([--disable-traditional-activation], [Do not build support for service activation without using SystemdService]), enable_traditional_activation="$enableval", enable_traditional_activation=yes)
+AC_ARG_ENABLE([vsock], [AS_HELP_STRING([--enable-vsock],[build with vsock support (linux only)])], [enable_vsock=$enableval], [enable_vsock=no])
 
 AC_ARG_WITH(session-socket-dir, AS_HELP_STRING([--with-session-socket-dir=[dirname]],[Where to put sockets for the per-login-session message bus]))
 AC_ARG_WITH(test-socket-dir, AS_HELP_STRING([--with-test-socket-dir=[dirname]],[Where to put sockets for make check]))
@@ -881,6 +882,12 @@ if test x$have_inotify = xyes; then
 fi
 
 AM_CONDITIONAL(DBUS_BUS_ENABLE_INOTIFY, test x$have_inotify = xyes)
+
+AS_IF([test "x$enable_vsock" = xno],
+    [have_vsock=no],
+    [AC_CHECK_HEADERS([linux/vm_sockets.h], [have_vsock=yes], [have_vsock=no], [#include <sys/socket.h>])])
+AS_IF([test "x$have_vsock" = xyes],
+    [AC_DEFINE([DBUS_ENABLE_VSOCK], [1], [Use vsock])])
 
 # For simplicity, we require the userland API for epoll_create1 at
 # compile-time (glibc 2.9), but we'll run on kernels that turn out
@@ -1796,6 +1803,7 @@ echo "
         Building inotify support: ${have_inotify}
         Building kqueue support:  ${have_kqueue}
         Building systemd support: ${have_systemd}
+        Building vsock support:   ${have_vsock}
         Traditional activation:   ${enable_traditional_activation}
         Building X11 code:        ${have_x11}
         Building Doxygen docs:    ${enable_doxygen_docs}
