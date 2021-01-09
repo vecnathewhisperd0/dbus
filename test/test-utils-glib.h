@@ -131,6 +131,7 @@ backported_g_steal_pointer (gpointer pointer_to_pointer)
 #endif
 
 gboolean test_check_tcp_works (void);
+gboolean test_check_vsock_works (void);
 
 void test_store_result_cb (GObject *source_object,
                            GAsyncResult *result,

@@ -899,6 +899,16 @@ test_check_tcp_works (void)
 #endif
 }
 
+#ifdef DBUS_ENABLE_VSOCK
+gboolean
+test_check_vsock_works (void)
+{
+  int fd = socket (AF_VSOCK, SOCK_STREAM, 0);
+  g_close (fd, NULL);
+  return fd >= 0;
+}
+#endif
+
 /*
  * Store the result of an async operation. @user_data is a pointer to a
  * variable that can store @result, initialized to %NULL.
