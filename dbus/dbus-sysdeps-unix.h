@@ -73,6 +73,13 @@ int _dbus_listen_unix_socket  (const char     *path,
                                dbus_bool_t     abstract,
                                DBusError      *error);
 
+int _dbus_listen_vsock        (const char     *cid,
+                               const char     *port,
+                               DBusString     *retcid,
+                               DBusString     *retport,
+                               DBusError      *error);
+
+
 int _dbus_connect_exec (const char     *path,
                         char *const    argv[],
                         DBusError      *error);
