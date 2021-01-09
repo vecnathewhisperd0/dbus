@@ -1612,6 +1612,53 @@ _dbus_vsock_parse_port (const char    *port,
 }
 
 int
+_dbus_connect_vsock (const char    *cid,
+                     const char    *port,
+                     DBusError      *error)
+{
+  int fd;
+  struct sockaddr_vm sa;
+
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+  _DBUS_ZERO (sa);
+  sa.svm_family = AF_VSOCK;
+
+  if (!_dbus_vsock_parse_cid (cid, &sa.svm_cid, error) ||
+      !_dbus_vsock_parse_port (port, &sa.svm_port, error))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET(error);
+      return -1;
+    }
+
+  if (!_dbus_open_socket (&fd, AF_VSOCK, SOCK_STREAM, 0, error))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET(error);
+      return -1;
+    }
+
+  if (connect (fd, (struct sockaddr *) &sa, sizeof (sa)) < 0)
+    {
+      dbus_set_error (error,
+                      _dbus_error_from_errno (errno),
+                      "Failed to connect to vsock CID:%s port:%s: %s",
+                      cid, port, _dbus_strerror (errno));
+
+      _dbus_close (fd, NULL);
+      return -1;
+    }
+
+  if (!_dbus_set_fd_nonblocking (fd, error))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET (error);
+      _dbus_close (fd, NULL);
+      return -1;
+    }
+
+  return fd;
+}
+
+int
 _dbus_listen_vsock (const char *cid,
                     const char *port,
                     DBusString *retcid,
