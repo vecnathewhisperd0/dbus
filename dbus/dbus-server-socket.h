@@ -34,6 +34,9 @@ DBusServer* _dbus_server_new_for_socket           (DBusSocket       *fds,
                                                    const DBusString *address,
                                                    DBusNonceFile    *noncefile,
                                                    DBusError        *error);
+DBusServer* _dbus_server_new_for_vsock            (const char       *cid,
+                                                   const char       *port,
+                                                   DBusError        *error);
 DBusServer* _dbus_server_new_for_autolaunch       (const DBusString *address,
                                                    DBusError        *error);
 DBUS_PRIVATE_EXPORT

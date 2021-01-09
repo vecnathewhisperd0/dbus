@@ -29,6 +29,10 @@
 #include "dbus-memory.h"
 #include "dbus-nonce.h"
 #include "dbus-string.h"
+#ifdef DBUS_ENABLE_VSOCK
+#include "dbus-sysdeps.h"
+#include "dbus-sysdeps-unix.h"
+#endif
 
 /**
  * @defgroup DBusServerSocket DBusServer implementations for SOCKET
@@ -394,6 +398,57 @@ failed:
 
   return NULL;
 }
+
+#ifdef DBUS_ENABLE_VSOCK
+DBusServer *
+_dbus_server_new_for_vsock (const char       *cid,
+                            const char       *port,
+                            DBusError        *error)
+{
+  DBusServer *server = NULL;
+  DBusSocket listen_fd = DBUS_SOCKET_INIT;
+  DBusString address = _DBUS_STRING_INIT_INVALID;
+  DBusString cid_str = _DBUS_STRING_INIT_INVALID;
+  DBusString port_str = _DBUS_STRING_INIT_INVALID;
+
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+  if (!_dbus_string_init (&address) ||
+      !_dbus_string_init (&cid_str) ||
+      !_dbus_string_init (&port_str))
+    {
+      dbus_set_error (error, DBUS_ERROR_NO_MEMORY, NULL);
+      goto out;
+    }
+
+  listen_fd.fd = _dbus_listen_vsock (cid, port, &cid_str, &port_str, error);
+  if (!_dbus_socket_is_valid (listen_fd))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET (error);
+      goto out;
+    }
+
+  if (!_dbus_string_append (&address, "vsock:cid=") ||
+      !_dbus_string_append (&address, _dbus_string_get_const_data (&cid_str)) ||
+      !_dbus_string_append (&address, ",port=") ||
+      !_dbus_string_append (&address, _dbus_string_get_const_data (&port_str)))
+    {
+      dbus_set_error (error, DBUS_ERROR_NO_MEMORY, NULL);
+      goto out;
+    }
+
+  server = _dbus_server_new_for_socket (&listen_fd, 1, &address, NULL, error);
+  if (server)
+    _dbus_socket_invalidate (&listen_fd);
+
+out:
+  _dbus_close_socket (listen_fd, NULL);
+  _dbus_string_free (&cid_str);
+  _dbus_string_free (&port_str);
+  _dbus_string_free (&address);
+  return server;
+}
+#endif
 
 /**
  * Creates a new server listening on TCP.
