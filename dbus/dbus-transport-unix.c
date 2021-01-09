@@ -109,6 +109,53 @@ _dbus_transport_new_for_domain_socket (const char     *path,
   return NULL;
 }
 
+#ifdef DBUS_ENABLE_VSOCK
+static DBusTransport *
+_dbus_transport_new_for_vsock (const char     *cid,
+                               const char     *port,
+                               DBusError      *error)
+{
+  DBusSocket fd = DBUS_SOCKET_INIT;
+  DBusTransport *transport = NULL;
+  DBusString address = _DBUS_STRING_INIT_INVALID;
+
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+  if (!_dbus_string_init (&address))
+    {
+      dbus_set_error (error, DBUS_ERROR_NO_MEMORY, NULL);
+      goto out;
+    }
+
+  if (!_dbus_string_append_printf (&address, "vsock:cid=%s,port=%s",
+                                   cid, port))
+    {
+      dbus_set_error (error, DBUS_ERROR_NO_MEMORY, NULL);
+      goto out;
+    }
+
+  fd.fd = _dbus_connect_vsock (cid, port, error);
+  if (fd.fd < 0)
+      goto out;
+
+  _dbus_verbose ("Successfully connected to CID:%s port:%s\n",
+                 cid, port);
+
+  transport = _dbus_transport_new_for_socket (fd, NULL, &address);
+  if (transport)
+    /* DBusTransport takes ownership on success */
+    _dbus_socket_invalidate (&fd);
+  else
+    dbus_set_error (error, DBUS_ERROR_NO_MEMORY, NULL);
+
+out:
+  _DBUS_ASSERT_ERROR_XOR_BOOL (error, transport != NULL);
+  _dbus_close_socket (fd, NULL);
+  _dbus_string_free (&address);
+  return transport;
+}
+#endif
+
 /**
  * Creates a new transport for the given binary and arguments. This
  * creates a client-side of a transport. The process will be forked
@@ -346,6 +393,39 @@ _dbus_transport_open_platform_specific (DBusAddressEntry  *entry,
           return DBUS_TRANSPORT_OPEN_OK;
         }
     }
+#ifdef DBUS_ENABLE_VSOCK
+  else if (strcmp (method, "vsock") == 0)
+    {
+      const char *cid = dbus_address_entry_get_value (entry, "cid");
+      const char *port = dbus_address_entry_get_value (entry, "port");
+
+      if (cid == NULL)
+        {
+          _dbus_set_bad_address (error, NULL, NULL,
+                                 "Missing vsock CID to connect to");
+          return DBUS_TRANSPORT_OPEN_BAD_ADDRESS;
+        }
+
+      if (port == NULL)
+        {
+          _dbus_set_bad_address (error, NULL, NULL,
+                                 "Missing vsock port to connect to");
+          return DBUS_TRANSPORT_OPEN_BAD_ADDRESS;
+        }
+
+      *transport_p = _dbus_transport_new_for_vsock (cid, port, error);
+      if (*transport_p == NULL)
+        {
+          _DBUS_ASSERT_ERROR_IS_SET (error);
+          return DBUS_TRANSPORT_OPEN_DID_NOT_CONNECT;
+        }
+      else
+        {
+          _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+          return DBUS_TRANSPORT_OPEN_OK;
+        }
+    }
+#endif
 #ifdef DBUS_ENABLE_LAUNCHD
   else if (strcmp (method, "launchd") == 0)
     {
