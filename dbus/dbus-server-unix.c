@@ -293,7 +293,10 @@ _dbus_server_listen_platform_specific (DBusAddressEntry *entry,
     {
       const char *vsock_cid_var = dbus_address_entry_get_value (entry, "cid");
       const char *vsock_port_var = dbus_address_entry_get_value (entry, "port");
-      *server_p = _dbus_server_new_for_vsock (vsock_cid_var, vsock_port_var, error);
+      const char *vsock_allow_var = dbus_address_entry_get_value (entry, "allow");
+
+      *server_p = _dbus_server_new_for_vsock (vsock_cid_var, vsock_port_var,
+                                              vsock_allow_var, error);
 
       if (*server_p != NULL)
         {

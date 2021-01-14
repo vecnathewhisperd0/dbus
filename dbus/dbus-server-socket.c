@@ -32,6 +32,8 @@
 #ifdef DBUS_ENABLE_VSOCK
 #include "dbus-sysdeps.h"
 #include "dbus-sysdeps-unix.h"
+#include <sys/socket.h>
+#include <linux/vm_sockets.h>
 #endif
 
 /**
@@ -59,6 +61,10 @@ struct DBusServerSocket
   DBusWatch **watch; /**< File descriptor watch. */
   char *socket_name; /**< Name of domain socket, to unlink if appropriate */
   DBusNonceFile *noncefile; /**< Nonce file used to authenticate clients */
+#ifdef DBUS_ENABLE_VSOCK
+  int n_allow_cids;   /**< Number of allowed CIDs. */
+  unsigned int *allow_cids; /**< Allowed CIDs. */
+#endif
 };
 
 static void
@@ -76,6 +82,9 @@ socket_finalize (DBusServer *server)
         socket_server->watch[i] = NULL;
       }
 
+#ifdef DBUS_ENABLE_VSOCK
+  dbus_free (socket_server->allow_cids);
+#endif
   dbus_free (socket_server->fds);
   dbus_free (socket_server->watch);
   dbus_free (socket_server->socket_name);
@@ -157,6 +166,37 @@ handle_new_client_fd_and_unlock (DBusServer *server,
   return TRUE;
 }
 
+#ifdef DBUS_ENABLE_VSOCK
+static dbus_bool_t
+_dbus_server_allow_vsock_client (DBusServerSocket *server, DBusSocket client_fd)
+{
+  struct sockaddr_vm sa;
+  socklen_t len;
+  int n;
+
+  if (server->n_allow_cids == 0)
+    return TRUE;
+
+  _DBUS_ZERO (sa);
+  len = sizeof (sa);
+  if (getpeername (_dbus_socket_get_int (client_fd), (struct sockaddr *)&sa, &len) < 0)
+    {
+      int saved_errno;
+      saved_errno = _dbus_save_socket_errno ();
+      _dbus_verbose ("Failed to getpeername(): %s\n", _dbus_strerror (saved_errno));
+      return FALSE;
+    }
+
+    for (n = 0; n < server->n_allow_cids; n++)
+      {
+        if (server->allow_cids[n] == sa.svm_cid)
+          return TRUE;
+      }
+
+    return FALSE;
+}
+#endif
+
 static dbus_bool_t
 socket_handle_watch (DBusWatch    *watch,
                    unsigned int  flags,
@@ -195,6 +235,14 @@ socket_handle_watch (DBusWatch    *watch,
           client_fd = _dbus_accept_with_noncefile (listen_fd, socket_server->noncefile);
       else 
           client_fd = _dbus_accept (listen_fd);
+
+#ifdef DBUS_ENABLE_VSOCK
+      if (!_dbus_server_allow_vsock_client (socket_server, client_fd))
+        {
+          _dbus_close_socket (client_fd, NULL);
+          _dbus_socket_invalidate (&client_fd);
+        }
+#endif
 
       saved_errno = _dbus_save_socket_errno ();
 
@@ -400,18 +448,75 @@ failed:
 }
 
 #ifdef DBUS_ENABLE_VSOCK
+static dbus_bool_t
+_dbus_vsock_parse_cid_list (const char *list,
+                            unsigned int **ret_list_cids,
+                            int *ret_n_list_cids,
+                            DBusError *error)
+{
+  DBusString list_str;
+  unsigned int *list_cids = NULL;
+  int n = 0;
+  int pos;
+  int end;
+
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+  if (!list)
+    goto end;
+
+  // over-allocate
+  end = strlen (list);
+  list_cids = dbus_new0 (unsigned int, end);
+
+  _dbus_string_init_const (&list_str, list);
+  for (pos = 0, n = 0; pos < end; ) {
+    unsigned long val;
+
+    if (!_dbus_string_parse_uint (&list_str, pos, &val, &pos) ||
+        val > _DBUS_UINT32_MAX ||
+        (list[pos] && list[pos] != ','))
+      {
+        dbus_set_error (error,
+                        DBUS_ERROR_BAD_ADDRESS,
+                        "Failed to parse VSOCK CID list '%s'", list);
+        dbus_free (list_cids);
+        return FALSE;
+      }
+
+    list_cids[n++] = val;
+    pos++;
+  }
+
+end:
+  *ret_list_cids = list_cids;
+  *ret_n_list_cids = n;
+
+  return TRUE;
+}
+
 DBusServer *
 _dbus_server_new_for_vsock (const char       *cid,
                             const char       *port,
+                            const char       *allow,
                             DBusError        *error)
 {
   DBusServer *server = NULL;
+  DBusServerSocket *server_socket = NULL;
   DBusSocket listen_fd = DBUS_SOCKET_INIT;
   DBusString address = _DBUS_STRING_INIT_INVALID;
   DBusString cid_str = _DBUS_STRING_INIT_INVALID;
   DBusString port_str = _DBUS_STRING_INIT_INVALID;
+  unsigned int *allow_cids = NULL;
+  int n_allow_cids = 0;
 
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+  if (!_dbus_vsock_parse_cid_list (allow, &allow_cids, &n_allow_cids, error))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET (error);
+      goto out;
+    }
 
   if (!_dbus_string_init (&address) ||
       !_dbus_string_init (&cid_str) ||
@@ -441,11 +546,17 @@ _dbus_server_new_for_vsock (const char       *cid,
   if (server)
     _dbus_socket_invalidate (&listen_fd);
 
+  server_socket = (DBusServerSocket *)server;
+  server_socket->n_allow_cids = n_allow_cids;
+  server_socket->allow_cids = allow_cids;
+  allow_cids = NULL;
+
 out:
   _dbus_close_socket (listen_fd, NULL);
   _dbus_string_free (&cid_str);
   _dbus_string_free (&port_str);
   _dbus_string_free (&address);
+  dbus_free (allow_cids);
   return server;
 }
 #endif

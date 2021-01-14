@@ -3740,6 +3740,14 @@
               port numbers.
              </entry>
            </row>
+           <row>
+             <entry>allow</entry>
+             <entry>(comma-separated 32 bits unsigned numbers)</entry>
+             <entry>
+               Used on listenable address, to configure the list of allowed peer
+               CID. If unset, all CID peers are allowed to connect.
+             </entry>
+           </row>
           </tbody>
          </tgroup>
         </informaltable>
