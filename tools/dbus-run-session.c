@@ -76,6 +76,8 @@ static const char me[] = "dbus-run-session";
 
 static void usage (int ecode) _DBUS_GNUC_NORETURN;
 
+static dbus_bool_t print_address = FALSE;
+
 static void
 usage (int ecode)
 {
@@ -87,6 +89,7 @@ usage (int ecode)
       "Options:\n"
       "--dbus-daemon=BINARY       run BINARY instead of dbus-daemon\n"
       "--config-file=FILENAME     pass to dbus-daemon instead of --session\n"
+      "--print-address            print used bus address\n"
       "\n",
       me, me, me);
   exit (ecode);
@@ -290,6 +293,9 @@ run_session (const char *dbus_daemon,
 
   close (bus_address_pipe[PIPE_READ_END]);
 
+  if (print_address)
+    fprintf(stdout, "got bus address: %s\n", bus_address);
+
   if (!dbus_setenv ("DBUS_SESSION_BUS_ADDRESS", bus_address) ||
       !dbus_setenv ("DBUS_SESSION_BUS_PID", NULL) ||
       !dbus_setenv ("DBUS_SESSION_BUS_WINDOWID", NULL) ||
@@ -425,6 +431,9 @@ run_session (const char *dbus_daemon,
   dbus_daemon_argv[1] = _dbus_string_get_data (&argv_strings[1]);
   dbus_daemon_argv[2] = _dbus_string_get_data (&argv_strings[2]);
   dbus_daemon_argv[3] = NULL;
+
+  if (print_address)
+    fprintf(stdout, "got bus address: %s\n", _dbus_string_get_data (&address));
 
   server_handle = _dbus_spawn_program (dbus_daemon, dbus_daemon_argv, NULL);
   if (!server_handle)
@@ -567,6 +576,10 @@ main (int argc, char **argv)
       else if (strcmp (arg, "--version") == 0)
         {
           version ();
+        }
+      else if (strcmp (arg, "--print-address") == 0)
+        {
+          print_address = TRUE;
         }
       else if (strstr (arg, "--config-file=") == arg)
         {
