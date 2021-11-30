@@ -119,6 +119,15 @@ x86_64-w64-mingw32-cmake-debug:
     ci_variant: "debug"
   script: *script
 
+x86_64-w64-mingw32-cmake-poll-events:
+  stage: build
+  image: "debian:buster-slim"
+  variables:
+    ci_buildsys: "cmake"
+    ci_host: "x86_64-w64-mingw32"
+    ci_variant: "poll-events"
+  script: *script
+
 stretch:
   when: manual
   stage: build
