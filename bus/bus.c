@@ -1599,6 +1599,11 @@ complain_about_message (BusContext     *context,
  *
  * NULL for addressed_recipient may mean the bus driver, or may mean
  * no destination was specified in the message (e.g. a signal).
+ *
+ * If send_error_reply is non-NULL, set it to a message serial number
+ * if it is appropriate to send error to the addressed recipient (as
+ * a reply to the given serial number) in addition to the sender
+ * (as reply to message).
  */
 dbus_bool_t
 bus_context_check_security_policy (BusContext     *context,
@@ -1607,6 +1612,7 @@ bus_context_check_security_policy (BusContext     *context,
                                    DBusConnection *addressed_recipient,
                                    DBusConnection *proposed_recipient,
                                    DBusMessage    *message,
+                                   dbus_uint32_t  *send_error_reply,
                                    BusActivationEntry *activation_entry,
                                    DBusError      *error)
 {
@@ -1617,6 +1623,7 @@ bus_context_check_security_policy (BusContext     *context,
   dbus_bool_t log;
   int type;
   dbus_bool_t requested_reply;
+  DBusError error2 = DBUS_ERROR_INIT;
 
   type = dbus_message_get_type (message);
   src = dbus_message_get_sender (message);
@@ -1630,6 +1637,7 @@ bus_context_check_security_policy (BusContext     *context,
                 addressed_recipient != NULL ||
                 activation_entry != NULL ||
                 strcmp (dest, DBUS_SERVICE_DBUS) == 0);
+  _dbus_assert (send_error_reply == NULL || *send_error_reply == 0);
 
   switch (type)
     {
@@ -1666,8 +1674,6 @@ bus_context_check_security_policy (BusContext     *context,
               if (proposed_recipient != NULL /* not to the bus driver */ &&
                   addressed_recipient == proposed_recipient /* not eavesdropping */)
                 {
-                  DBusError error2;
-
                   dbus_error_init (&error2);
                   requested_reply = bus_connections_check_reply (bus_connection_get_connections (sender),
                                                                  transaction,
@@ -1684,6 +1690,17 @@ bus_context_check_security_policy (BusContext     *context,
       else
         {
           sender_policy = NULL;
+        }
+
+      if (!bus_containers_check_can_send (sender,
+                                          requested_reply,
+                                          proposed_recipient,
+                                          message, error))
+        {
+          if (requested_reply && send_error_reply != NULL)
+            *send_error_reply = dbus_message_get_reply_serial (message);
+
+          return FALSE;
         }
 
       /* First verify the SELinux access controls.  If allowed then
@@ -1799,6 +1816,15 @@ bus_context_check_security_policy (BusContext     *context,
   _dbus_assert ((proposed_recipient != NULL && recipient_policy != NULL) ||
                 (proposed_recipient != NULL && sender == NULL && recipient_policy == NULL) ||
                 (proposed_recipient == NULL && recipient_policy == NULL));
+
+  if (proposed_recipient != NULL &&
+      !bus_containers_check_can_receive (sender,
+                                         requested_reply,
+                                         proposed_recipient,
+                                         addressed_recipient,
+                                         message,
+                                         error))
+    return FALSE;
 
   log = FALSE;
   if (sender_policy &&

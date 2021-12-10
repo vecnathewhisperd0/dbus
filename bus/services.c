@@ -28,6 +28,7 @@
 #include <dbus/dbus-mempool.h>
 #include <dbus/dbus-marshal-validate.h>
 
+#include "containers.h"
 #include "driver.h"
 #include "services.h"
 #include "connection.h"
@@ -253,6 +254,8 @@ bus_registry_ensure (BusRegistry               *registry,
   
   _dbus_assert (owner_connection_if_created != NULL);
   _dbus_assert (transaction != NULL);
+  /* The dbus-daemon's name can't be owned */
+  _dbus_assert (!_dbus_string_equal_c_str (service_name, DBUS_SERVICE_DBUS));
 
   service = _dbus_hash_table_lookup_string (registry->service_hash,
                                             _dbus_string_get_const_data (service_name));
@@ -281,10 +284,10 @@ bus_registry_ensure (BusRegistry               *registry,
                  service_name, _dbus_string_get_const_data (service_name),
                  service->name);
 
-  if (!bus_driver_send_service_owner_changed (service->name, 
-					      NULL,
-					      bus_connection_get_name (owner_connection_if_created),
-					      transaction, error))
+  if (!bus_driver_send_name_owner_changed (service->name,
+                                           NULL,
+                                           owner_connection_if_created,
+                                           transaction, error))
     {
       bus_service_unref (service);
       return NULL;
@@ -335,7 +338,8 @@ bus_registry_foreach (BusRegistry               *registry,
 dbus_bool_t
 bus_registry_list_services (BusRegistry *registry,
                             char      ***listp,
-                            int         *array_len)
+                            int         *array_len,
+                            DBusConnection *observer)
 {
   int i, j, len;
   char **retval;
@@ -353,6 +357,28 @@ bus_registry_list_services (BusRegistry *registry,
     {
       BusService *service = _dbus_hash_iter_get_value (&iter);
 
+      /* The dbus-daemon itself is not listed in the registry */
+      _dbus_assert (strcmp (service->name, DBUS_SERVICE_DBUS) != 0);
+
+      /* Skip the ones the observer is not allowed to know about */
+      if (observer != NULL)
+        {
+          if (service->name[0] == ':')
+            {
+              DBusConnection *owner;
+
+              owner = bus_service_get_primary_owners_connection (service);
+
+              if (!bus_containers_check_can_see_connection (observer, owner))
+                continue;
+            }
+          else if (!bus_containers_check_can_see_well_known_name (observer,
+                                                                  service->name))
+            {
+              continue;
+            }
+        }
+
       retval[i] = _dbus_strdup (service->name);
       if (retval[i] == NULL)
 	goto error;
@@ -363,7 +389,7 @@ bus_registry_list_services (BusRegistry *registry,
   retval[i] = NULL;
   
   if (array_len)
-    *array_len = len;
+    *array_len = i;
   
   *listp = retval;
   return TRUE;
@@ -432,6 +458,11 @@ bus_registry_acquire_service (BusRegistry      *registry,
                       DBUS_SERVICE_DBUS);
       goto out;
     }
+
+  if (!bus_containers_check_can_own (connection,
+                                     _dbus_string_get_const_data (service_name),
+                                     error))
+    goto out;
 
   policy = bus_connection_get_policy (connection);
   _dbus_assert (policy != NULL);
@@ -663,6 +694,14 @@ bus_registry_release_service (BusRegistry      *registry,
 
       goto out;
     }
+
+  /* Check whether we would be allowed to own the name before we try
+   * releasing it, so that contained apps can't use the reply from this
+   * method as an oracle to determine whether someone else owns it. */
+  if (!bus_containers_check_can_own (connection,
+                                     _dbus_string_get_const_data (service_name),
+                                     error))
+    goto out;
 
   service = bus_registry_lookup (registry, service_name);
 
@@ -1051,6 +1090,10 @@ bus_service_swap_owner (BusService     *service,
 
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
 
+  /* The dbus-daemon's name can't be owned */
+  _dbus_assert (service != NULL);
+  _dbus_assert (strcmp (service->name, DBUS_SERVICE_DBUS) != 0);
+
   /* We send out notifications before we do any work we
    * might have to undo if the notification-sending failed
    */
@@ -1086,10 +1129,10 @@ bus_service_swap_owner (BusService     *service,
       new_owner = (BusOwner *)link->data;
       new_owner_conn = new_owner->conn;
 
-      if (!bus_driver_send_service_owner_changed (service->name,
- 						  bus_connection_get_name (connection),
- 						  bus_connection_get_name (new_owner_conn),
- 						  transaction, error))
+      if (!bus_driver_send_name_owner_changed (service->name,
+                                               connection,
+                                               new_owner_conn,
+                                               transaction, error))
         return FALSE;
 
       /* This will be our new owner */
@@ -1127,7 +1170,11 @@ bus_service_remove_owner (BusService     *service,
   BusOwner *primary_owner;
   
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
-  
+
+  /* The dbus-daemon's name can't be owned */
+  _dbus_assert (service != NULL);
+  _dbus_assert (strcmp (service->name, DBUS_SERVICE_DBUS) != 0);
+
   /* We send out notifications before we do any work we
    * might have to undo if the notification-sending failed
    */
@@ -1161,10 +1208,9 @@ bus_service_remove_owner (BusService     *service,
     }
   else if (_dbus_list_length_is_one (&service->owners))
     {
-      if (!bus_driver_send_service_owner_changed (service->name,
- 						  bus_connection_get_name (connection),
- 						  NULL,
- 						  transaction, error))
+      if (!bus_driver_send_name_owner_changed (service->name,
+                                               connection, NULL,
+                                               transaction, error))
         return FALSE;
     }
   else
@@ -1180,10 +1226,10 @@ bus_service_remove_owner (BusService     *service,
       new_owner = (BusOwner *)link->data;
       new_owner_conn = new_owner->conn;
 
-      if (!bus_driver_send_service_owner_changed (service->name,
- 						  bus_connection_get_name (connection),
- 						  bus_connection_get_name (new_owner_conn),
- 						  transaction, error))
+      if (!bus_driver_send_name_owner_changed (service->name,
+                                               connection,
+                                               new_owner_conn,
+                                               transaction, error))
         return FALSE;
 
       /* This will be our new owner */

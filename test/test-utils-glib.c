@@ -961,3 +961,74 @@ test_get_helper_executable (const gchar *exe)
 
   return g_build_filename (dbus_test_exec, exe, NULL);
 }
+
+/*
+ * Send a Ping() call from a sender to a destination, and wait for the
+ * destination to reply. By the time we get the reply, the destination
+ * must have received any prior signals from the sender that it was
+ * going to receive, and similarly the sender must have received any
+ * prior signals from the destination.
+ */
+void
+test_sync_gdbus_connections (GDBusConnection *caller,
+                             GDBusConnection *callee)
+{
+  GVariant *tuple;
+  GError *error = NULL;
+  GAsyncResult *result = NULL;
+
+  g_return_if_fail (G_IS_DBUS_CONNECTION (caller));
+  g_return_if_fail (G_IS_DBUS_CONNECTION (callee));
+
+  g_test_message ("Synchronizing caller %p with callee %p...", caller, callee);
+
+  g_dbus_connection_call (caller,
+                          g_dbus_connection_get_unique_name (callee),
+                          "/", DBUS_INTERFACE_PEER, "Ping",
+                          NULL, G_VARIANT_TYPE_UNIT,
+                          G_DBUS_CALL_FLAGS_NONE, -1, NULL,
+                          test_store_result_cb, &result);
+
+  while (result == NULL)
+    g_main_context_iteration (NULL, TRUE);
+
+  tuple = g_dbus_connection_call_finish (caller, result, &error);
+
+  g_assert_no_error (error);
+  g_assert_nonnull (tuple);
+  g_variant_unref (tuple);
+
+  g_test_message ("Synchronized caller %p with callee %p", caller, callee);
+}
+
+#if !GLIB_CHECK_VERSION(2, 44, 0)
+gboolean
+backported_g_strv_contains (const gchar * const *haystack,
+                            const gchar *needle)
+{
+  const gchar * const *iter;
+
+  for (iter = haystack; iter != NULL && *iter != NULL; iter++)
+    {
+      if (g_str_equal (needle, *iter))
+        return TRUE;
+    }
+
+  return FALSE;
+}
+#endif
+
+#if !GLIB_CHECK_VERSION(2, 52, 1)
+/* Work around https://bugzilla.gnome.org/show_bug.cgi?id=779409 */
+void
+test_g_dbus_connection_remove_filter (GDBusConnection *connection,
+                                      guint filter_id)
+{
+  GLogLevelFlags old_fatal_mask;
+
+  /* Temporarily make warnings not fatal */
+  old_fatal_mask = g_log_set_always_fatal (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL);
+  (g_dbus_connection_remove_filter) (connection, filter_id);
+  g_log_set_always_fatal (old_fatal_mask);
+}
+#endif

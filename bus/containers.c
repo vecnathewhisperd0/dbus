@@ -62,6 +62,7 @@ typedef struct
   DBusList *connections;
   unsigned long uid;
   unsigned announced:1;
+  unsigned has_policy:1;
 } BusContainerInstance;
 
 /* Data attached to a DBusConnection that has created container instances. */
@@ -238,7 +239,8 @@ bus_container_instance_emit_removed (BusContainerInstance *self)
       !bus_transaction_capture (transaction, NULL, NULL, message))
     goto oom;
 
-  if (!bus_dispatch_matches (transaction, NULL, NULL, message, &error))
+  if (!bus_dispatch_matches (transaction, NULL, NULL, message,
+                             NULL, NULL, &error))
     {
       if (dbus_error_has_name (&error, DBUS_ERROR_NO_MEMORY))
         goto oom;
@@ -668,6 +670,57 @@ bus_container_instance_listen (BusContainerInstance *self,
   return TRUE;
 }
 
+/*
+ * Parse the Allow named parameter.
+ *
+ * variant_iter is an iterator over the contents of the corresponding
+ * variant in the a{sv}, which is an array of Allow rules.
+ */
+static dbus_bool_t
+bus_container_instance_parse_allow (BusContainerInstance *self,
+                                    DBusMessageIter *variant_iter,
+                                    DBusError *error)
+{
+  char *signature;
+  DBusMessageIter array_iter;
+  DBusMessageIter struct_iter;
+
+  self->has_policy = TRUE;
+
+  signature = dbus_message_iter_get_signature (variant_iter);
+
+  /* The contents of this array haven't been fully designed yet, but
+   * the current assumption is that each rule will be a (usos) struct. */
+  if (strcmp (signature, "a(usos)") != 0)
+    {
+      dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                      "Named parameter \"Allow\" should be of type a(usos)");
+      dbus_free (signature);
+      return FALSE;
+    }
+
+  dbus_free (signature);
+  _dbus_assert (dbus_message_iter_get_arg_type (variant_iter) ==
+                DBUS_TYPE_ARRAY);
+  _dbus_assert (dbus_message_iter_get_element_type (variant_iter) ==
+                DBUS_TYPE_STRUCT);
+  dbus_message_iter_recurse (variant_iter, &array_iter);
+
+  while (dbus_message_iter_get_arg_type (&array_iter) != DBUS_TYPE_INVALID)
+    {
+      _dbus_assert (dbus_message_iter_get_arg_type (&array_iter) ==
+                    DBUS_TYPE_STRUCT);
+      dbus_message_iter_recurse (&array_iter, &struct_iter);
+
+      /* If we supported any Allow rules, we'd implement them here. */
+      dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                      "Named parameter \"Allow\" must be empty for now");
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
 dbus_bool_t
 bus_containers_handle_add_server (DBusConnection *connection,
                                   BusTransaction *transaction,
@@ -811,6 +864,7 @@ bus_containers_handle_add_server (DBusConnection *connection,
   while (dbus_message_iter_get_arg_type (&dict_iter) != DBUS_TYPE_INVALID)
     {
       DBusMessageIter pair_iter;
+      DBusMessageIter variant_iter;
       const char *param_name;
 
       _dbus_assert (dbus_message_iter_get_arg_type (&dict_iter) ==
@@ -820,12 +874,25 @@ bus_containers_handle_add_server (DBusConnection *connection,
       _dbus_assert (dbus_message_iter_get_arg_type (&pair_iter) ==
                     DBUS_TYPE_STRING);
       dbus_message_iter_get_basic (&pair_iter, &param_name);
+      dbus_message_iter_next (&pair_iter);
+      _dbus_assert (dbus_message_iter_get_arg_type (&pair_iter) ==
+                    DBUS_TYPE_VARIANT);
+      dbus_message_iter_recurse (&pair_iter, &variant_iter);
 
-      /* If we supported any named parameters, we'd copy them into the data
-       * structure here; but we don't, so fail instead. */
-      dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
-                      "Named parameter %s is not understood", param_name);
-      goto fail;
+      if (strcmp (param_name, "Allow") == 0)
+        {
+          if (!bus_container_instance_parse_allow (instance, &variant_iter,
+                                                   error))
+            goto fail;
+        }
+      else
+        {
+          dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                          "Named parameter %s is not understood", param_name);
+          goto fail;
+        }
+
+      dbus_message_iter_next (&dict_iter);
     }
 
   /* End of arguments */
@@ -1473,4 +1540,444 @@ bus_containers_connection_is_contained (DBusConnection *connection,
 #endif /* DBUS_ENABLE_CONTAINERS */
 
   return FALSE;
+}
+
+/*
+ * Return TRUE if caller can cause activation of name.
+ */
+dbus_bool_t
+bus_containers_check_can_activate (DBusConnection *caller,
+                                   const char *name,
+                                   DBusError *error)
+{
+#ifdef DBUS_ENABLE_CONTAINERS
+  BusContainerInstance *instance;
+#endif
+
+  _dbus_assert (caller != NULL);
+  _dbus_assert (name != NULL);
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+#ifdef DBUS_ENABLE_CONTAINERS
+  instance = connection_get_instance (caller);
+
+  if (instance == NULL)
+    return TRUE;
+
+  if (instance->has_policy)
+    {
+      dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                      "Connection \"%s\" (%s) is in a container that is "
+                      "not allowed to activate \"%s\"",
+                      bus_connection_get_name (caller),
+                      bus_connection_get_loginfo (caller),
+                      name);
+      return FALSE;
+    }
+#endif /* DBUS_ENABLE_CONTAINERS */
+
+  return TRUE;
+}
+
+/*
+ * Return TRUE if connection is allowed to own bus_name.
+ */
+dbus_bool_t
+bus_containers_check_can_own (DBusConnection *connection,
+                              const char *bus_name,
+                              DBusError *error)
+{
+#ifdef DBUS_ENABLE_CONTAINERS
+  BusContainerInstance *instance;
+#endif
+
+  _dbus_assert (connection != NULL);
+  _dbus_assert (bus_name != NULL);
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+#ifdef DBUS_ENABLE_CONTAINERS
+  instance = connection_get_instance (connection);
+
+  if (instance == NULL)
+    return TRUE;
+
+  if (instance->has_policy)
+    {
+      /* TODO: Later we should iterate through the policy and see
+       * whether it allows owning the name, but for now we assume that
+       * the only non-trivial policy is "forbid all" */
+      dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                      "Connection \"%s\" (%s) is in a container that is "
+                      "not allowed to own name \"%s\"",
+                      bus_connection_get_name (connection),
+                      bus_connection_get_loginfo (connection),
+                      bus_name);
+      return FALSE;
+    }
+#endif /* DBUS_ENABLE_CONTAINERS */
+
+  return TRUE;
+}
+
+/*
+ * Return TRUE if sender is allowed to send message to
+ * proposed_recipient.
+ *
+ * sender is always non-NULL here.
+ *
+ * proposed_recipient may be NULL if the message is to be sent to the
+ * bus driver, or if we are checking whether auto-starting is allowed
+ * (as a first pass, before all details of the activated service
+ * are known). This is the same as bus_context_check_security_policy().
+ * For broadcasts, this function is called once per recipient.
+ *
+ * requested_reply indicates whether it's an expected reply to a method
+ * call from proposed_recipient to sender that was already allowed.
+ */
+dbus_bool_t
+bus_containers_check_can_send (DBusConnection *sender,
+                               dbus_bool_t requested_reply,
+                               DBusConnection *proposed_recipient,
+                               DBusMessage *message,
+                               DBusError *error)
+{
+#ifdef DBUS_ENABLE_CONTAINERS
+  BusContainerInstance *instance;
+  int type;
+#endif
+
+  _dbus_assert (sender != NULL);
+  _dbus_assert (message != NULL);
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+#ifdef DBUS_ENABLE_CONTAINERS
+  instance = connection_get_instance (sender);
+
+  if (instance == NULL)
+    return TRUE;
+
+  /* We don't allow unsolicited replies even if the container has no
+   * particular policy. */
+  type = dbus_message_get_type (message);
+
+  if (type == DBUS_MESSAGE_TYPE_METHOD_RETURN ||
+      type == DBUS_MESSAGE_TYPE_ERROR)
+    {
+      if (!requested_reply)
+        {
+          dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                          "Connection \"%s\" (%s) is in a container that is "
+                          "not allowed to send unsolicited replies",
+                          bus_connection_get_name (sender),
+                          bus_connection_get_loginfo (sender));
+          return FALSE;
+        }
+
+      /* Requested replies that contain Unix fds are covered by policy
+       * (fall through). Requested replies that don't contain Unix fds
+       * are unconditionally allowed. */
+      if (!dbus_message_contains_unix_fds (message))
+        return TRUE;
+    }
+
+  if (instance->has_policy)
+    {
+      BusContainerInstance *recipient_instance;
+
+      if (dbus_message_contains_unix_fds (message))
+        {
+          dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                          "Connection \"%s\" (%s) is in a container that is "
+                          "not allowed to send file descriptors",
+                          bus_connection_get_name (sender),
+                          bus_connection_get_loginfo (sender));
+          return FALSE;
+        }
+
+      if (proposed_recipient == NULL)
+        {
+          const char *dest = dbus_message_get_destination (message);
+
+          /* Containers can always talk to the dbus-daemon itself */
+          if (dest != NULL && strcmp (dest, DBUS_SERVICE_DBUS) == 0)
+            return TRUE;
+        }
+
+      recipient_instance = connection_get_instance (proposed_recipient);
+
+      if (recipient_instance == instance)
+        {
+          /* Messages pass freely within a container */
+          return TRUE;
+        }
+
+      /* TODO: Have a policy by which containers can optionally send
+       * messages to the outside */
+
+      dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                      "Connection \"%s\" (%s) is in a container that is "
+                      "not allowed to send most messages",
+                      bus_connection_get_name (sender),
+                      bus_connection_get_loginfo (sender));
+      return FALSE;
+    }
+#endif /* DBUS_ENABLE_CONTAINERS */
+
+  return TRUE;
+}
+
+/*
+ * Return TRUE if proposed_recipient can receive message from sender.
+ *
+ * sender may be NULL to indicate the dbus-daemon.
+ *
+ * requested_reply is the same as for check_can_send().
+ *
+ * proposed_recipient is the recipient we are considering sending to
+ * right now, which may be an eavesdropper but is never NULL.
+ * For broadcasts, this function is called once per recipient.
+ *
+ * addressed_recipient is proposed_recipient, or NULL for broadcasts,
+ * or a different connection if the proposed recipient is
+ * eavesdropping.
+ */
+dbus_bool_t
+bus_containers_check_can_receive (DBusConnection *sender,
+                                  dbus_bool_t requested_reply,
+                                  DBusConnection *proposed_recipient,
+                                  DBusConnection *addressed_recipient,
+                                  DBusMessage *message,
+                                  DBusError *error)
+{
+#ifdef DBUS_ENABLE_CONTAINERS
+  BusContainerInstance *instance;
+#endif
+
+  _dbus_assert (proposed_recipient != NULL);
+  _dbus_assert (message != NULL);
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+#ifdef DBUS_ENABLE_CONTAINERS
+  instance = connection_get_instance (proposed_recipient);
+
+  if (instance == NULL)
+    return TRUE;
+
+  if (instance->has_policy)
+    {
+      BusContainerInstance *sender_instance;
+
+      if (dbus_message_contains_unix_fds (message))
+        {
+          dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                          "Connection \"%s\" (%s) is in a container that is "
+                          "not allowed to receive file descriptors",
+                          bus_connection_get_name (proposed_recipient),
+                          bus_connection_get_loginfo (proposed_recipient));
+          return FALSE;
+        }
+
+      if (proposed_recipient == addressed_recipient)
+        {
+          /* Unicast messages are only controlled on the send side, not
+           * the receive side */
+          return TRUE;
+        }
+      else if (addressed_recipient != NULL)
+        {
+          /* Eavesdropping on unicast messages shouldn't be able to
+           * happen here, because containers with non-trivial policy
+           * can't add match rules that would allow it, but let's
+           * be extra-safe and check for it... */
+          dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                          "Connection \"%s\" (%s) is in a container that is "
+                          "not allowed to eavesdrop",
+                          bus_connection_get_name (proposed_recipient),
+                          bus_connection_get_loginfo (proposed_recipient));
+          return FALSE;
+        }
+
+      /* If we get here, the message must have been a broadcast */
+      _dbus_assert (addressed_recipient == NULL);
+
+      /* For NameOwnerChanged, we rely on the needs_to_see arguments
+       * to bus_dispatch_matches() being set */
+      if (sender == NULL &&
+          dbus_message_is_signal (message, DBUS_INTERFACE_DBUS,
+                                  "NameOwnerChanged"))
+        return TRUE;
+
+      /* Other broadcasts from the dbus-daemon, in particular
+       * ContainerInstanceRemoved, are not special-cased. */
+
+      sender_instance = connection_get_instance (sender);
+
+      if (sender_instance == instance)
+        {
+          /* Messages pass freely within a container */
+          return TRUE;
+        }
+
+      /* TODO: Have a policy by which containers can optionally receive
+       * broadcasts from the outside */
+      dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                      "Connection \"%s\" (%s) is in a container that is "
+                      "not allowed to receive most messages",
+                      bus_connection_get_name (proposed_recipient),
+                      bus_connection_get_loginfo (proposed_recipient));
+      return FALSE;
+    }
+#endif /* DBUS_ENABLE_CONTAINERS */
+
+  return TRUE;
+}
+
+/*
+ * Return TRUE if observer can see name.
+ *
+ * This doesn't have a DBusError, because on error we must always
+ * behave as though the name didn't exist, to avoid leaking
+ * information.
+ *
+ * name must be a valid D-Bus well-known name: callers must already
+ * have checked for unique names (use check_can_see_connection for those
+ * instead) and DBUS_SERVICE_DBUS (always visible).
+ */
+dbus_bool_t
+bus_containers_check_can_see_well_known_name (DBusConnection *observer,
+                                              const char *name)
+{
+#ifdef DBUS_ENABLE_CONTAINERS
+  BusContainerInstance *instance;
+#endif
+
+  _dbus_assert (observer != NULL);
+  _dbus_assert (name != NULL);
+  _dbus_assert (name[0] != ':');
+  _dbus_assert (strcmp (name, DBUS_SERVICE_DBUS) != 0);
+
+#ifdef DBUS_ENABLE_CONTAINERS
+  instance = connection_get_instance (observer);
+
+  if (instance == NULL)
+    return TRUE;
+
+  if (instance->has_policy)
+    {
+      /* TODO: Have a policy by which containers can optionally see
+       * (and own) well-known names */
+      return FALSE;
+    }
+#endif /* DBUS_ENABLE_CONTAINERS */
+
+  return TRUE;
+}
+
+/*
+ * Return TRUE if observer can see subject.
+ *
+ * This doesn't have a DBusError, because on error we must always
+ * behave as though the name didn't exist, to avoid leaking
+ * information.
+ */
+dbus_bool_t
+bus_containers_check_can_see_connection (DBusConnection *observer,
+                                         DBusConnection *subject)
+{
+#ifdef DBUS_ENABLE_CONTAINERS
+  BusContainerInstance *instance;
+#endif
+
+  _dbus_assert (observer != NULL);
+  _dbus_assert (subject != NULL);
+
+#ifdef DBUS_ENABLE_CONTAINERS
+  instance = connection_get_instance (observer);
+
+  if (instance == NULL)
+    return TRUE;
+
+  if (instance->has_policy)
+    {
+      BusContainerInstance *subject_instance;
+
+      /* Trivial case: if the same connection owns it, it's
+       * obviously visible */
+      if (subject == observer)
+        return TRUE;
+
+      subject_instance = connection_get_instance (subject);
+
+      /* If it's the unique name of another connection in the same
+       * container instance then it's visible */
+      if (subject_instance == instance)
+        return TRUE;
+
+      /* TODO: Allow containers to see unique names that have
+       * previously contacted them */
+
+      /* TODO: Have a policy by which containers can optionally see
+       * other unique names */
+      return FALSE;
+    }
+#endif /* DBUS_ENABLE_CONTAINERS */
+
+  return TRUE;
+}
+
+/*
+ * Return TRUE if observer can retrieve various sorts of information
+ * (credentials etc.) about other. other may be NULL to denote the
+ * dbus-daemon itself.
+ *
+ * To avoid leaking information about the existence or nonexistence of
+ * names, this should not be called unless one of the
+ * bus_containers_check_can_see_*() functions has already succeeded for
+ * the name or connection in question.
+ */
+dbus_bool_t
+bus_containers_check_can_inspect (DBusConnection *observer,
+                                  DBusConnection *other,
+                                  DBusError *error)
+{
+#ifdef DBUS_ENABLE_CONTAINERS
+  BusContainerInstance *instance;
+#endif
+
+  _dbus_assert (observer != NULL);
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+#ifdef DBUS_ENABLE_CONTAINERS
+  instance = connection_get_instance (observer);
+
+  if (instance == NULL)
+    return TRUE;
+
+  if (instance->has_policy)
+    {
+      BusContainerInstance *other_instance;
+
+      other_instance = connection_get_instance (other);
+
+      if (other_instance == instance)
+        {
+          /* There are no secrets between connections in a container */
+          return TRUE;
+        }
+
+      /* TODO: Have a policy by which containers can optionally inspect
+       * connections on the outside */
+      dbus_set_error (error, DBUS_ERROR_ACCESS_DENIED,
+                      "Connection \"%s\" (%s) is in a container that is "
+                      "not allowed to inspect \"%s\"",
+                      bus_connection_get_name (observer),
+                      bus_connection_get_loginfo (observer),
+                      other == NULL
+                        ? DBUS_SERVICE_DBUS
+                        : bus_connection_get_name (other));
+      return FALSE;
+    }
+#endif /* DBUS_ENABLE_CONTAINERS */
+
+  return TRUE;
 }

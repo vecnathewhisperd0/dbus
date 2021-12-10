@@ -26,6 +26,7 @@
 #include <config.h>
 #include "dispatch.h"
 #include "connection.h"
+#include "containers.h"
 #include "driver.h"
 #include "services.h"
 #include "activation.h"
@@ -63,15 +64,41 @@ send_one_message (DBusConnection *connection,
                   DBusConnection *addressed_recipient,
                   DBusMessage    *message,
                   BusTransaction *transaction,
+                  DBusConnection *needs_to_see_conn,
+                  const char     *needs_to_see_well_known_name,
                   DBusError      *error)
 {
   DBusError stack_error = DBUS_ERROR_INIT;
+
+  _dbus_assert (needs_to_see_well_known_name == NULL ||
+                strcmp (needs_to_see_well_known_name, DBUS_SERVICE_DBUS) != 0);
+
+  if (needs_to_see_conn != NULL &&
+      !bus_containers_check_can_see_connection (connection,
+                                                needs_to_see_conn))
+    {
+      /* This broadcast is about a connection that is invisible to this
+       * recipient. Don't send it, but don't set or return an
+       * error either. */
+      return TRUE;
+    }
+
+  if (needs_to_see_well_known_name != NULL &&
+      !bus_containers_check_can_see_well_known_name (connection,
+                                                     needs_to_see_well_known_name))
+    {
+      /* This broadcast is about a well-known name that is invisible to this
+       * recipient. Don't send it, but don't set or return an
+       * error either. */
+      return TRUE;
+    }
 
   if (!bus_context_check_security_policy (context, transaction,
                                           sender,
                                           addressed_recipient,
                                           connection,
                                           message,
+                                          NULL,
                                           NULL,
                                           &stack_error))
     {
@@ -122,14 +149,24 @@ bus_dispatch_matches (BusTransaction *transaction,
                       DBusConnection *sender,
                       DBusConnection *addressed_recipient,
                       DBusMessage    *message,
+                      DBusConnection *needs_to_see_conn,
+                      const char     *needs_to_see_well_known_name,
                       DBusError      *error)
 {
-  DBusError tmp_error;
+  DBusError tmp_error = DBUS_ERROR_INIT;
   BusConnections *connections;
   DBusList *recipients;
   BusMatchmaker *matchmaker;
   DBusList *link;
   BusContext *context;
+
+  /* needs_to_see is only for broadcasts */
+  _dbus_assert (addressed_recipient == NULL || needs_to_see_conn == NULL);
+  _dbus_assert (addressed_recipient == NULL ||
+                needs_to_see_well_known_name == NULL);
+  /* The dbus-daemon itself is never the name we are looking for */
+  _dbus_assert (needs_to_see_well_known_name == NULL ||
+                strcmp (needs_to_see_well_known_name, DBUS_SERVICE_DBUS) != 0);
 
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
 
@@ -145,11 +182,68 @@ bus_dispatch_matches (BusTransaction *transaction,
   /* First, send the message to the addressed_recipient, if there is one. */
   if (addressed_recipient != NULL)
     {
+      dbus_uint32_t send_error_reply = 0;
+
+      /* We don't need to check these because they only make sense for
+       * broadcasts */
+      _dbus_assert (needs_to_see_conn == NULL);
+      _dbus_assert (needs_to_see_well_known_name == NULL);
+
       if (!bus_context_check_security_policy (context, transaction,
                                               sender, addressed_recipient,
                                               addressed_recipient,
-                                              message, NULL, error))
-        return FALSE;
+                                              message, &send_error_reply,
+                                              NULL, &tmp_error))
+        {
+          /* If the security policy told us to send an error reply to
+           * the addressed recipient instead, do so */
+          if (send_error_reply != 0)
+            {
+              DBusMessage *substitute_message;
+
+              substitute_message = dbus_message_new (DBUS_MESSAGE_TYPE_ERROR);
+
+              if (substitute_message == NULL ||
+                  !dbus_message_set_reply_serial (substitute_message,
+                                                  send_error_reply) ||
+                  !dbus_message_set_sender (substitute_message,
+                                            bus_connection_get_name (sender)) ||
+                  !dbus_message_set_destination (
+                      substitute_message,
+                      bus_connection_get_name (addressed_recipient)) ||
+                  !dbus_message_set_error_name (substitute_message,
+                                                tmp_error.name) ||
+                  !dbus_message_append_args (substitute_message,
+                                             DBUS_TYPE_STRING, &tmp_error.message,
+                                             DBUS_TYPE_INVALID))
+                {
+                  dbus_clear_message (&substitute_message);
+                  dbus_error_free (&tmp_error);
+                  BUS_SET_OOM (error);
+                  return FALSE;
+                }
+
+              dbus_message_set_no_reply (substitute_message, TRUE);
+
+              if (!bus_transaction_capture (transaction, NULL,
+                                            addressed_recipient,
+                                            substitute_message) ||
+                  !bus_transaction_send (transaction, sender,
+                                         addressed_recipient,
+                                         substitute_message))
+                {
+                  dbus_clear_message (&substitute_message);
+                  dbus_error_free (&tmp_error);
+                  BUS_SET_OOM (error);
+                  return FALSE;
+                }
+
+              dbus_message_unref (substitute_message);
+            }
+
+          dbus_move_error (&tmp_error, error);
+          return FALSE;
+        }
 
       if (dbus_message_contains_unix_fds (message) &&
           !dbus_connection_can_send_type (addressed_recipient,
@@ -173,7 +267,6 @@ bus_dispatch_matches (BusTransaction *transaction,
 
   /* Now dispatch to others who look interested in this message */
   connections = bus_context_get_connections (context);
-  dbus_error_init (&tmp_error);
   matchmaker = bus_context_get_matchmaker (context);
 
   recipients = NULL;
@@ -193,7 +286,8 @@ bus_dispatch_matches (BusTransaction *transaction,
       dest = link->data;
 
       if (!send_one_message (dest, context, sender, addressed_recipient,
-                             message, transaction, &tmp_error))
+                             message, transaction, needs_to_see_conn,
+                             needs_to_see_well_known_name, &tmp_error))
         break;
 
       link = _dbus_list_get_next_link (&recipients, link);
@@ -393,7 +487,7 @@ bus_dispatch (DBusConnection *connection,
 
       if (!bus_context_check_security_policy (context, transaction,
                                               connection, NULL, NULL, message,
-                                              NULL, &error))
+                                              NULL, NULL, &error))
         {
           _dbus_verbose ("Security policy rejected message\n");
           goto out;
@@ -497,7 +591,8 @@ bus_dispatch (DBusConnection *connection,
    * addressed_recipient == NULL), and match it against other connections'
    * match rules.
    */
-  if (!bus_dispatch_matches (transaction, connection, addressed_recipient, message, &error))
+  if (!bus_dispatch_matches (transaction, connection, addressed_recipient,
+                             message, NULL, NULL, &error))
     goto out;
 
  out:
@@ -4970,6 +5065,37 @@ bus_dispatch_test_conf (const DBusString *test_data_dir,
 }
 #endif
 
+/*
+ * Check that various invalid service files listed in a <servicedir>
+ * configured by filename didn't get loaded. This currently tests
+ * invalid values for Name.
+ */
+static dbus_bool_t
+bus_dispatch_test_bad_services (const DBusString *test_data_dir,
+                                const char       *filename)
+{
+  BusContext *context;
+
+  _dbus_test_diag ("%s:%s...", _DBUS_FUNCTION_NAME, filename);
+
+  context = bus_context_new_test (test_data_dir, filename);
+
+  if (context == NULL)
+    {
+      _dbus_test_not_ok ("%s:%s - bus_context_new_test() failed",
+          _DBUS_FUNCTION_NAME, filename);
+      return FALSE;
+    }
+
+  /* All the real testing for these services is done when
+   * bus_context_new_test() calls bus_activation_check_services () */
+
+  bus_context_unref (context);
+
+  _dbus_test_ok ("%s:%s", _DBUS_FUNCTION_NAME, filename);
+  return TRUE;
+}
+
 #if defined(ENABLE_TRADITIONAL_ACTIVATION) && !defined(DBUS_WIN)
 static dbus_bool_t
 bus_dispatch_test_conf_fail (const DBusString *test_data_dir,
@@ -5048,6 +5174,11 @@ bus_dispatch_test (const char *test_data_dir_cstr)
   _dbus_verbose ("Normal activation tests\n");
   if (!bus_dispatch_test_conf (&test_data_dir,
   			       "valid-config-files/debug-allow-all.conf", FALSE))
+    return FALSE;
+
+  /* run select launch-helper activation tests on broken service files */
+  if (!bus_dispatch_test_bad_services (&test_data_dir,
+                                       "valid-config-files/debug-allow-all-fail.conf"))
     return FALSE;
 
 #ifndef DBUS_WIN

@@ -27,6 +27,7 @@
 #include "activation.h"
 #include "activation-exit-codes.h"
 #include "config-parser.h"
+#include "containers.h"
 #include "desktop-file.h"
 #include "dispatch.h"
 #include "services.h"
@@ -315,6 +316,25 @@ update_desktop_file_entry (BusActivation       *activation,
                                     error))
     goto out;
 
+  if (!dbus_validate_bus_name (name, error))
+    goto out;
+
+  if (name[0] == ':')
+    {
+      dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                      "Bus name \"%s\" cannot be activatable because it "
+                      "starts with ':'", name);
+      goto out;
+    }
+
+  if (strcmp (name, DBUS_SERVICE_DBUS) == 0)
+    {
+      dbus_set_error (error, DBUS_ERROR_INVALID_ARGS,
+                      "Bus name \"%s\" cannot be activatable because it "
+                      "is reserved for the message bus", name);
+      goto out;
+    }
+
   if (!bus_desktop_file_get_string (desktop_file,
                                     DBUS_SERVICE_SECTION,
                                     DBUS_SERVICE_EXEC,
@@ -509,6 +529,9 @@ update_desktop_file_entry (BusActivation       *activation,
           goto out;
         }
 
+      /* We already checked for this */
+      _dbus_assert (strcmp (entry->name, DBUS_SERVICE_DBUS) != 0);
+
       if (!_dbus_hash_table_insert_string (activation->entries, entry->name, bus_activation_entry_ref (entry)))
         {
           BUS_SET_OOM (error);
@@ -560,6 +583,9 @@ update_desktop_file_entry (BusActivation       *activation,
       dbus_free (entry->assumed_apparmor_label);
       entry->assumed_apparmor_label = assumed_apparmor_label;
       assumed_apparmor_label = NULL;
+
+      /* We already checked for this */
+      _dbus_assert (strcmp (entry->name, DBUS_SERVICE_DBUS) != 0);
 
       if (!_dbus_hash_table_insert_string (activation->entries,
                                            entry->name, bus_activation_entry_ref(entry)))
@@ -1300,7 +1326,8 @@ bus_activation_send_pending_auto_activation_messages (BusActivation  *activation
           if (!bus_dispatch_matches (transaction,
                                      entry->connection,
                                      addressed_recipient,
-                                     entry->activation_message, &error))
+                                     entry->activation_message,
+                                     NULL, NULL, &error))
             {
               /* If permission is denied, we just want to return the error
                * to the original method invoker; in particular, we don't
@@ -1840,6 +1867,10 @@ bus_activation_activate_service (BusActivation  *activation,
 
   limit = bus_context_get_max_pending_activations (activation->context);
 
+  if (connection != NULL &&
+      !bus_containers_check_can_activate (connection, service_name, error))
+    return FALSE;
+
   if (activation->n_pending_activations >= limit)
     {
       dbus_set_error (error, DBUS_ERROR_LIMITS_EXCEEDED,
@@ -1872,6 +1903,7 @@ bus_activation_activate_service (BusActivation  *activation,
         NULL, /* addressed recipient */
         NULL, /* proposed recipient */
         activation_message,
+        NULL,
         entry,
         error))
     {
@@ -2163,7 +2195,8 @@ bus_activation_activate_service (BusActivation  *activation,
                                bus_connection_get_loginfo (connection));
               /* Wonderful, systemd is connected, let's just send the msg */
               retval = bus_dispatch_matches (activation_transaction, NULL,
-                                             systemd, message, error);
+                                             systemd, message,
+                                             NULL, NULL, error);
             }
           else
             {
@@ -2367,7 +2400,8 @@ cancel_pending_activation:
 dbus_bool_t
 bus_activation_list_services (BusActivation *activation,
 			      char        ***listp,
-			      int           *array_len)
+			      int           *array_len,
+                              DBusConnection *observer)
 {
   int i, j, len;
   char **retval;
@@ -2385,6 +2419,18 @@ bus_activation_list_services (BusActivation *activation,
     {
       BusActivationEntry *entry = _dbus_hash_iter_get_value (&iter);
 
+      /* Unique names aren't activatable */
+      _dbus_assert (entry->name[0] != ':');
+
+      /* The dbus-daemon isn't activatable */
+      _dbus_assert (strcmp (entry->name, DBUS_SERVICE_DBUS) != 0);
+
+      /* Skip the ones the observer is not allowed to know about */
+      if (observer != NULL &&
+          !bus_containers_check_can_see_well_known_name (observer,
+                                                         entry->name))
+        continue;
+
       retval[i] = _dbus_strdup (entry->name);
       if (retval[i] == NULL)
 	goto error;
@@ -2395,7 +2441,7 @@ bus_activation_list_services (BusActivation *activation,
   retval[i] = NULL;
 
   if (array_len)
-    *array_len = len;
+    *array_len = i;
 
   *listp = retval;
   return TRUE;
@@ -2821,6 +2867,54 @@ bus_activation_service_reload_test (const char *test_data_dir_cstr)
 out:
   _dbus_string_free (&directory);
   return ret;
+}
+
+/*
+ * The real implementation of bus_dispatch_test_bad_services(), called
+ * by bus_context_new_test(). This asserts that various invalid service
+ * files in the <servicedir> configured by
+ * bus_dispatch_test_bad_services() didn't get loaded into self->entries.
+ */
+void
+bus_activation_check_services (BusActivation *self)
+{
+  DBusHashIter iter;
+
+  _dbus_hash_iter_init (self->entries, &iter);
+
+  while (_dbus_hash_iter_next (&iter))
+    {
+      const char *k;
+      BusActivationEntry *v;
+
+      k = _dbus_hash_iter_get_string_key (&iter);
+      v = _dbus_hash_iter_get_value (&iter);
+
+      if (k[0] == '\0')
+        _dbus_test_fatal ("Empty service name found");
+
+      if (k[0] == ':')
+        _dbus_test_fatal ("Service name \"%s\" is a unique name", k);
+
+      if (strcmp (k, DBUS_SERVICE_DBUS) == 0)
+        _dbus_test_fatal ("dbus-daemon's service name found");
+
+      if (strcmp (k, v->name) != 0)
+        _dbus_test_fatal ("Mismatched service name found");
+
+      if (!dbus_validate_bus_name (k, NULL))
+        _dbus_test_fatal ("Service name \"%s\" is invalid", k);
+    }
+
+  _dbus_assert (
+      _dbus_hash_table_lookup_string (self->entries, ":2.1") == NULL);
+  _dbus_assert (
+      _dbus_hash_table_lookup_string (self->entries, "?!") == NULL);
+  _dbus_assert (
+      _dbus_hash_table_lookup_string (self->entries, "") == NULL);
+  _dbus_assert (
+      _dbus_hash_table_lookup_string (self->entries,
+                                      DBUS_SERVICE_DBUS) == NULL);
 }
 
 #endif /* DBUS_ENABLE_EMBEDDED_TESTS */

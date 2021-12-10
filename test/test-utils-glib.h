@@ -124,6 +124,10 @@ backported_g_steal_pointer (gpointer pointer_to_pointer)
   *pp = NULL;
   return ret;
 }
+
+#define g_strv_contains(haystack, needle) backported_g_strv_contains (haystack, needle)
+gboolean backported_g_strv_contains (const gchar * const *haystack,
+                                     const gchar *needle);
 #endif
 
 #ifndef g_assert_nonnull
@@ -139,5 +143,15 @@ void test_store_result_cb (GObject *source_object,
 void test_incomplete (const gchar *message);
 
 gchar *test_get_helper_executable (const gchar *exe);
+
+void test_sync_gdbus_connections (GDBusConnection *caller,
+                                  GDBusConnection *callee);
+
+#if !GLIB_CHECK_VERSION(2, 52, 1)
+/* Work around https://bugzilla.gnome.org/show_bug.cgi?id=779409 */
+void test_g_dbus_connection_remove_filter (GDBusConnection *connection,
+                                           guint filter_id);
+#define g_dbus_connection_remove_filter(c, fi) test_g_dbus_connection_remove_filter (c, fi)
+#endif
 
 #endif

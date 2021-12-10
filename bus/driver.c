@@ -58,6 +58,7 @@ bus_driver_get_owner_of_name (DBusConnection *observer,
   BusRegistry *registry;
   BusService *serv;
   DBusString str;
+  DBusConnection *owner;
 
   registry = bus_connection_get_registry (observer);
   _dbus_string_init_const (&str, name);
@@ -66,7 +67,24 @@ bus_driver_get_owner_of_name (DBusConnection *observer,
   if (serv == NULL)
     return NULL;
 
-  return bus_service_get_primary_owners_connection (serv);
+  /* The dbus-daemon itself is not in the BusRegistry */
+  _dbus_assert (strcmp (name, DBUS_SERVICE_DBUS) != 0);
+
+  owner = bus_service_get_primary_owners_connection (serv);
+
+  if (name[0] == ':')
+    {
+      if (owner != NULL &&
+          !bus_containers_check_can_see_connection (observer, owner))
+        return NULL;
+    }
+  else
+    {
+      if (!bus_containers_check_can_see_well_known_name (observer, name))
+        return NULL;
+    }
+
+  return owner;
 }
 
 BusDriverFound
@@ -92,7 +110,12 @@ bus_driver_get_conn_helper (DBusConnection  *connection,
     *name_p = name;
 
   if (strcmp (name, DBUS_SERVICE_DBUS) == 0)
-    return BUS_DRIVER_FOUND_SELF;
+    {
+      if (!bus_containers_check_can_inspect (connection, NULL, error))
+        return BUS_DRIVER_FOUND_ERROR;
+
+      return BUS_DRIVER_FOUND_SELF;
+    }
 
   conn = bus_driver_get_owner_of_name (connection, name);
 
@@ -103,6 +126,9 @@ bus_driver_get_conn_helper (DBusConnection  *connection,
                       what_we_want, name);
       return BUS_DRIVER_FOUND_ERROR;
     }
+
+  if (!bus_containers_check_can_inspect (connection, conn, error))
+    return BUS_DRIVER_FOUND_ERROR;
 
   if (peer_conn_p != NULL)
     *peer_conn_p = conn;
@@ -239,23 +265,51 @@ static dbus_bool_t bus_driver_send_welcome_message (DBusConnection *connection,
                                                     DBusError      *error);
 
 dbus_bool_t
-bus_driver_send_service_owner_changed (const char     *service_name,
-				       const char     *old_owner,
-				       const char     *new_owner,
-				       BusTransaction *transaction,
-				       DBusError      *error)
+bus_driver_send_name_owner_changed (const char     *service_name,
+                                    DBusConnection *old_owner,
+                                    DBusConnection *new_owner,
+                                    BusTransaction *transaction,
+                                    DBusError      *error)
 {
+  const char *old_owner_name = "";
+  const char *new_owner_name = "";
+  DBusConnection *needs_to_see_conn;
+  const char *needs_to_see_well_known_name;
   DBusMessage *message;
   dbus_bool_t retval;
-  const char *null_service;
 
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
 
-  null_service = "";
+  /* The dbus-daemon's own name is never owned. */
+  _dbus_assert (service_name != NULL);
+  _dbus_assert (strcmp (service_name, DBUS_SERVICE_DBUS) != 0);
+
+  if (old_owner != NULL)
+    old_owner_name = bus_connection_get_name (old_owner);
+
+  if (new_owner != NULL)
+    new_owner_name = bus_connection_get_name (new_owner);
+
+  /* In principle bus_connection_get_name() can return NULL for inactive
+   * connections, but we know that only active connections, i.e.
+   * connections that have called Hello(), can own names. If a connection
+   * has ever been active, it remains active forever (a closed connection
+   * doesn't become inactive, it just goes away).
+   *
+   * While we're making a connection active, we give it its unique name
+   * before we call this function. The other sort of names that might
+   * be owned are well-known names, but you can only get one of those
+   * by calling RequestName(), and inactive connections can't do that:
+   * bus_context_check_security_policy() hard-codes that the only
+   * thing inactive connections can do is to call o.fd.DBus.Hello()
+   * on the dbus-daemon. */
+  _dbus_assert (old_owner_name != NULL);
+  _dbus_assert (new_owner_name != NULL);
+
   _dbus_verbose ("sending name owner changed: %s [%s -> %s]\n",
                  service_name,
-                 old_owner ? old_owner : null_service,
-                 new_owner ? new_owner : null_service);
+                 old_owner_name,
+                 new_owner_name);
 
   message = dbus_message_new_signal (DBUS_PATH_DBUS,
                                      DBUS_INTERFACE_DBUS,
@@ -272,8 +326,8 @@ bus_driver_send_service_owner_changed (const char     *service_name,
 
   if (!dbus_message_append_args (message,
                                  DBUS_TYPE_STRING, &service_name,
-                                 DBUS_TYPE_STRING, old_owner ? &old_owner : &null_service,
-                                 DBUS_TYPE_STRING, new_owner ? &new_owner : &null_service,
+                                 DBUS_TYPE_STRING, &old_owner_name,
+                                 DBUS_TYPE_STRING, &new_owner_name,
                                  DBUS_TYPE_INVALID))
     goto oom;
 
@@ -282,7 +336,51 @@ bus_driver_send_service_owner_changed (const char     *service_name,
   if (!bus_transaction_capture (transaction, NULL, NULL, message))
     goto oom;
 
-  retval = bus_dispatch_matches (transaction, NULL, NULL, message, error);
+  if (service_name[0] == ':')
+    {
+      /* For the creation or destruction of a unique name, we should only
+       * send the message to connections that are allowed to see the
+       * relevant connection, and it's easier to implement that in terms
+       * of a DBusConnection.
+       *
+       * We know that unique names are only created or destroyed, never
+       * atomically transferred between owners. */
+
+      if (old_owner != NULL)
+        {
+          _dbus_assert (strcmp (service_name, old_owner_name) == 0);
+          _dbus_assert (strcmp (new_owner_name, "") == 0);
+          _dbus_assert (new_owner == NULL);
+          needs_to_see_conn = old_owner;
+        }
+      else
+        {
+          _dbus_assert (new_owner != NULL);
+          _dbus_assert (strcmp (old_owner_name, "") == 0);
+          _dbus_assert (strcmp (service_name, new_owner_name) == 0);
+          needs_to_see_conn = new_owner;
+        }
+
+      needs_to_see_well_known_name = NULL;
+    }
+  else
+    {
+      /* We filter NameOwnerChanged messages for well-known names based
+       * on text matching. */
+      needs_to_see_conn = NULL;
+      needs_to_see_well_known_name = service_name;
+    }
+
+  _dbus_assert (needs_to_see_well_known_name != NULL ||
+                needs_to_see_conn != NULL);
+  _dbus_assert (needs_to_see_well_known_name == NULL ||
+                needs_to_see_conn == NULL);
+  _dbus_assert (needs_to_see_well_known_name == NULL ||
+                needs_to_see_well_known_name == service_name);
+
+  retval = bus_dispatch_matches (transaction, NULL, NULL, message,
+                                 needs_to_see_conn,
+                                 needs_to_see_well_known_name, error);
   dbus_message_unref (message);
 
   return retval;
@@ -602,7 +700,7 @@ bus_driver_handle_list_services (DBusConnection *connection,
       return FALSE;
     }
 
-  if (!bus_registry_list_services (registry, &services, &len))
+  if (!bus_registry_list_services (registry, &services, &len, connection))
     {
       dbus_message_unref (reply);
       BUS_SET_OOM (error);
@@ -695,7 +793,7 @@ bus_driver_handle_list_activatable_services (DBusConnection *connection,
       return FALSE;
     }
 
-  if (!bus_activation_list_services (activation, &services, &len))
+  if (!bus_activation_list_services (activation, &services, &len, connection))
     {
       dbus_message_unref (reply);
       BUS_SET_OOM (error);
@@ -917,11 +1015,26 @@ bus_driver_handle_service_exists (DBusConnection *connection,
     {
       service_exists = TRUE;
     }
+  else if (name[0] != ':' &&
+           !bus_containers_check_can_see_well_known_name (connection, name))
+    {
+      service_exists = FALSE;
+    }
   else
     {
       _dbus_string_init_const (&service_name, name);
       service = bus_registry_lookup (registry, &service_name);
       service_exists = service != NULL;
+    }
+
+  if (service_exists && name[0] == ':')
+    {
+      DBusConnection *owner;
+
+      owner = bus_service_get_primary_owners_connection (service);
+
+      if (!bus_containers_check_can_see_connection (connection, owner))
+        service_exists = FALSE;
     }
 
   reply = dbus_message_new_method_return (message);
@@ -1468,6 +1581,7 @@ bus_driver_handle_get_service_owner (DBusConnection *connection,
   BusRegistry *registry;
   BusService *service;
   DBusMessage *reply;
+  DBusConnection *owner;
 
   _DBUS_ASSERT_ERROR_IS_CLEAR (error);
 
@@ -1481,35 +1595,52 @@ bus_driver_handle_get_service_owner (DBusConnection *connection,
 			       DBUS_TYPE_INVALID))
       goto failed;
 
-  _dbus_string_init_const (&str, text);
-  service = bus_registry_lookup (registry, &str);
-  if (service == NULL &&
-      _dbus_string_equal_c_str (&str, DBUS_SERVICE_DBUS))
+  if (strcmp (text, DBUS_SERVICE_DBUS) == 0)
     {
       /* DBUS_SERVICE_DBUS owns itself */
       base_name = DBUS_SERVICE_DBUS;
-    }
-  else if (service == NULL)
-    {
-      dbus_set_error (error,
-                      DBUS_ERROR_NAME_HAS_NO_OWNER,
-                      "Could not get owner of name '%s': no such name", text);
-      goto failed;
-    }
-  else
-    {
-      base_name = bus_connection_get_name (bus_service_get_primary_owners_connection (service));
-      if (base_name == NULL)
-        {
-          /* FIXME - how is this error possible? */
-          dbus_set_error (error,
-                          DBUS_ERROR_FAILED,
-                          "Could not determine unique name for '%s'", text);
-          goto failed;
-        }
-      _dbus_assert (*base_name == ':');
+      goto success;
     }
 
+  _dbus_string_init_const (&str, text);
+
+  if (!_dbus_validate_bus_name (&str, 0, _dbus_string_get_length (&str)))
+    {
+      /* We return NameHasNoOwner rather than InvalidArgs because
+       * either way, it has no owner */
+      dbus_set_error (error, DBUS_ERROR_NAME_HAS_NO_OWNER,
+                      "Requested bus name \"%s\" is not valid",
+                      _dbus_string_get_const_data (&str));
+      goto failed;
+    }
+
+  if (text[0] != ':' &&
+      !bus_containers_check_can_see_well_known_name (connection, text))
+    goto invisible;
+
+  service = bus_registry_lookup (registry, &str);
+
+  if (service == NULL)
+    goto invisible;
+
+  owner = bus_service_get_primary_owners_connection (service);
+
+  if (text[0] == ':' &&
+      !bus_containers_check_can_see_connection (connection, owner))
+    goto invisible;
+
+  base_name = bus_connection_get_name (owner);
+  if (base_name == NULL)
+    {
+      /* FIXME - how is this error possible? */
+      dbus_set_error (error,
+                      DBUS_ERROR_FAILED,
+                      "Could not determine unique name for '%s'", text);
+      goto failed;
+    }
+  _dbus_assert (*base_name == ':');
+
+ success:
   _dbus_assert (base_name != NULL);
 
   reply = dbus_message_new_method_return (message);
@@ -1536,6 +1667,15 @@ bus_driver_handle_get_service_owner (DBusConnection *connection,
   if (reply)
     dbus_message_unref (reply);
   return FALSE;
+
+ invisible:
+  /* We must make sure to use the same error message for names that
+   * really don't exist, and names that exist but we're not allowed
+   * to know that. */
+  dbus_set_error (error,
+                  DBUS_ERROR_NAME_HAS_NO_OWNER,
+                  "Could not get owner of name '%s': no such name", text);
+  goto failed;
 }
 
 static dbus_bool_t
@@ -1568,21 +1708,26 @@ bus_driver_handle_list_queued_owners (DBusConnection *connection,
 			       DBUS_TYPE_INVALID))
       goto failed;
 
-  _dbus_string_init_const (&str, text);
-  service = bus_registry_lookup (registry, &str);
-  if (service == NULL &&
-      _dbus_string_equal_c_str (&str, DBUS_SERVICE_DBUS))
+  if (strcmp (text, DBUS_SERVICE_DBUS) == 0)
     {
       /* DBUS_SERVICE_DBUS owns itself */
       if (! _dbus_list_append (&base_names, (char *) dbus_service_name))
         goto oom;
+
+      goto success;
     }
-  else if (service == NULL)
+
+  /* TODO: In flatpak-dbus-proxy, ListQueuedOwners() is mediated by
+   * OWN access, but SEE access might make more sense? */
+  if (!bus_containers_check_can_own (connection, text, NULL))
+    goto invisible;
+
+  _dbus_string_init_const (&str, text);
+  service = bus_registry_lookup (registry, &str);
+
+  if (service == NULL)
     {
-      dbus_set_error (error,
-                      DBUS_ERROR_NAME_HAS_NO_OWNER,
-                      "Could not get owners of name '%s': no such name", text);
-      goto failed;
+      goto invisible;
     }
   else
     {
@@ -1593,6 +1738,7 @@ bus_driver_handle_list_queued_owners (DBusConnection *connection,
         }
     }
 
+ success:
   _dbus_assert (base_names != NULL);
 
   reply = dbus_message_new_method_return (message);
@@ -1645,6 +1791,15 @@ bus_driver_handle_list_queued_owners (DBusConnection *connection,
     _dbus_list_clear (&base_names);
 
   return FALSE;
+
+ invisible:
+  /* We must make sure to use the same error message for names that
+   * really don't exist, and names that exist but we're not allowed
+   * to know that. */
+  dbus_set_error (error,
+                  DBUS_ERROR_NAME_HAS_NO_OWNER,
+                  "Could not get owners of name '%s': no such name", text);
+  goto failed;
 }
 
 static dbus_bool_t

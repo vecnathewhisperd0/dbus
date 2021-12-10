@@ -220,6 +220,7 @@ set(TESTDIRS
     data/invalid-config-files
     data/invalid-config-files-system
     data/invalid-messages
+    data/invalid-service-files
     data/invalid-service-files-system
     data/equiv-config-files
     data/equiv-config-files/basic
