@@ -201,7 +201,7 @@ AC_ARG_ENABLE(verbose-mode, AS_HELP_STRING([--enable-verbose-mode],[support verb
 AC_ARG_ENABLE(asserts, AS_HELP_STRING([--enable-asserts],[include assertion checks]),enable_asserts=$enableval,enable_asserts=$enable_developer)
 AC_ARG_ENABLE(checks, AS_HELP_STRING([--enable-checks],[include sanity checks on public API]),enable_checks=$enableval,enable_checks=yes)
 AC_ARG_ENABLE(xml-docs, AS_HELP_STRING([--enable-xml-docs],[build XML documentation (requires xmlto)]),enable_xml_docs=$enableval,enable_xml_docs=auto)
-AC_ARG_ENABLE(doxygen-docs, AS_HELP_STRING([--enable-doxygen-docs],[build DOXYGEN documentation (requires Doxygen)]),enable_doxygen_docs=$enableval,enable_doxygen_docs=auto)
+AC_ARG_ENABLE(doxygen-docs, AS_HELP_STRING([--enable-doxygen-docs=off|on|*auto|full],[build DOXYGEN documentation (requires Doxygen)]),enable_doxygen_docs=$enableval,enable_doxygen_docs=auto)
 AC_ARG_ENABLE([ducktype-docs],
               AS_HELP_STRING([--enable-ducktype-docs],
                              [build Ducktype documentation (requires Ducktype)]),
@@ -1239,18 +1239,31 @@ if test x$enable_doxygen_docs = xauto ; then
     fi
 fi
 
-if test x$enable_doxygen_docs = xyes; then
+if test x$enable_doxygen_docs = xyes || test x$enable_doxygen_docs = xfull; then
     if test x$have_doxygen = xno; then
 	AC_MSG_ERROR([Building Doxygen docs explicitly required, but Doxygen not found])
     fi
 fi
 
-if test x$dbus_win = xno; then
-    DBUS_GENERATE_MAN=YES
-else
-    DBUS_GENERATE_MAN=NO
-fi
+DBUS_GENERATE_MAN=NO
 AC_SUBST([DBUS_GENERATE_MAN])
+
+if test x$enable_doxygen_docs = xfull; then
+    AC_CHECK_PROGS([DOT_EXECUTABLE], [dot], [false])
+    AS_IF(["x$DOT_EXECUTABLE" = xfalse], [DOXYGEN_HAVE_DOT=YES], [DOXYGEN_HAVE_DOT=NO])
+    DOXYGEN_INPUT=${srcdir}/dbus ${srcdir}/bus ${srcdir}/test
+else
+    DOXYGEN_INPUT=${srcdir}/dbus
+    DOXYGEN_HAVE_DOT=NO
+fi
+DOXYGEN_OUTPUT_DIRECTORY="$(pwd)/doc/api"
+DOXYGEN_STRIP_FROM_PATH=${srcdir}
+DOXYGEN_STRIP_FROM_INC_PATH=${srcdir}
+AC_SUBST([DOXYGEN_HAVE_DOT])
+AC_SUBST([DOXYGEN_INPUT])
+AC_SUBST([DOXYGEN_OUTPUT_DIRECTORY])
+AC_SUBST([DOXYGEN_STRIP_FROM_PATH])
+AC_SUBST([DOXYGEN_STRIP_FROM_INC_PATH])
 
 AM_CONDITIONAL(DBUS_DOXYGEN_DOCS_ENABLED, test x$enable_doxygen_docs = xyes)
 AC_MSG_RESULT($enable_doxygen_docs)
@@ -1276,7 +1289,7 @@ AS_IF([test "x$enable_doxygen_docs" = xyes && test "x$QHELPGENERATOR" != x], [
     enable_qthelp_docs=yes
     DOXYGEN_GENERATE_QHP=YES
     DOXYGEN_QHG_LOCATION="$QHELPGENERATOR"
-    DOXYGEN_QCH_FILE="$(pwd)/doc/api/qch/dbus-$VERSION.qch"
+    DOXYGEN_QCH_FILE="$DOXYGEN_OUTPUT_DIRECTORY/qch/dbus-$VERSION.qch"
   ], [
     DOXYGEN_GENERATE_QHP=NO
     enable_qthelp_docs=no
