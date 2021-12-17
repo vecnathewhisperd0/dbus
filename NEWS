@@ -1,3 +1,24 @@
+dbus 1.12.22 (UNRELEASED)
+=========================
+
+Fixes:
+
+• Avoid malloc() after fork on non-GNU libc (dbus!181, Jean-Louis Fuchs)
+
+• Fix build with clang 13 by using Standard C offsetof where available
+  (dbus!237, Simon McVittie)
+
+• Fix build of tests on FreeBSD (dbus!167, Simon McVittie)
+
+• Make documentation build more reproducible
+  (dbus!189, dbus!238; Arnout Engelen, Simon McVittie)
+
+• On Unix, make X11 autolaunch cope with slashes in DISPLAY
+  (dbus#8, dbus#311; William Earley)
+
+• Don't try to raise RLIMIT_NOFILE beyond OPEN_MAX on macOS
+  (dbus#309, William Earley)
+
 dbus 1.12.20 (2020-07-02)
 =========================
 
