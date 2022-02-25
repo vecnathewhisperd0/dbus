@@ -273,8 +273,8 @@ case "$ci_buildsys" in
 
             (*)
                 # assume Ubuntu 18.04 'bionic', Debian 10 'buster' or newer
-                ${make} -C doc dbus-docs.tar.xz
-                tar -C $(pwd)/DESTDIR -xf doc/dbus-docs.tar.xz
+                ${make} -C doc dbus-docs.tar.gz
+                tar -C $(pwd)/DESTDIR -xf doc/dbus-docs.tar.gz
                 ( cd DESTDIR/dbus-docs && find . -ls )
                 ;;
         esac
