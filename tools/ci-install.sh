@@ -54,6 +54,10 @@ NULL=
 # Typical values for ci_distro=fedora might be 25, rawhide
 : "${ci_suite:=xenial}"
 
+# ci_variant:
+# One of debug, reduced, legacy, production
+: "${ci_variant:=production}"
+
 if [ $(id -u) = 0 ]; then
     sudo=
 else
