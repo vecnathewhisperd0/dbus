@@ -120,21 +120,4 @@ x86_64-w64-mingw32-cmake-debug:
     ci_variant: "debug"
   script: *script
 
-stretch:
-  when: manual
-  stage: build
-  image: "debian:stretch-slim"
-  variables:
-    ci_suite: "stretch"
-  script: *script
-
-xenial:
-  when: manual
-  stage: build
-  image: "ubuntu:xenial"
-  variables:
-    ci_distro: "ubuntu"
-    ci_suite: "xenial"
-  script: *script
-
 # vim:set sw=2 sts=2 et:

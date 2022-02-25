@@ -54,9 +54,9 @@ NULL=
 
 # ci_suite:
 # OS suite (release, branch) in which we are testing.
-# Typical values for ci_distro=debian: sid, jessie
+# Typical values for ci_distro=debian: sid, bullseye
 # Typical values for ci_distro=fedora might be 25, rawhide
-: "${ci_suite:=xenial}"
+: "${ci_suite:=bullseye}"
 
 # ci_variant:
 # One of debug, reduced, legacy, production
@@ -87,30 +87,6 @@ case "$ci_distro" in
         $sudo sed -i -e 's/httpredir\.debian\.org/deb.debian.org/g' \
             /etc/apt/sources.list
 
-        case "$ci_suite" in
-            (xenial)
-                # Ubuntu 16.04 didn't have the wine32, wine64 packages
-                wine32=wine:i386
-                wine64=wine:amd64
-                ;;
-            (*)
-                wine32=wine32
-                wine64=wine64
-                ;;
-        esac
-
-        case "$ci_suite" in
-            (trusty)
-                # Ubuntu 14.04 didn't have the wine32, wine64 packages
-                wine32=wine:i386
-                wine64=wine:amd64
-                ;;
-            (*)
-                wine32=wine32
-                wine64=wine64
-                ;;
-        esac
-
         case "$ci_host" in
             (i686-w64-mingw32)
                 $sudo dpkg --add-architecture i386
@@ -129,7 +105,7 @@ case "$ci_distro" in
                     "${packages[@]}"
                     binutils-mingw-w64-i686
                     g++-mingw-w64-i686
-                    $wine32 wine
+                    wine32 wine
                 )
                 ;;
             (x86_64-w64-mingw32)
@@ -137,7 +113,7 @@ case "$ci_distro" in
                     "${packages[@]}"
                     binutils-mingw-w64-x86-64
                     g++-mingw-w64-x86-64
-                    $wine64 wine
+                    wine64 wine
                 )
                 ;;
         esac
@@ -166,6 +142,7 @@ case "$ci_distro" in
             docbook-xsl
             doxygen
             dpkg-dev
+            ducktype
             g++
             gcc
             gnome-desktop-testing
@@ -187,22 +164,9 @@ case "$ci_distro" in
             xmlto
             xsltproc
             xvfb
+            yelp-tools
             zstd
         )
-
-        case "$ci_suite" in
-            (stretch)
-                # Debian 9 'stretch' didn't have the ducktype package
-                ;;
-
-            (*)
-                # assume Ubuntu 18.04 'bionic', Debian 10 'buster' or newer
-                packages=(
-                    "${packages[@]}"
-                    ducktype yelp-tools
-                )
-                ;;
-        esac
 
         $sudo apt-get -qq -y --no-install-recommends install "${packages[@]}"
 
@@ -213,17 +177,6 @@ case "$ci_distro" in
             echo "user ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/nopasswd
             chmod 0440 /etc/sudoers.d/nopasswd
         fi
-
-        # manual package setup
-        case "$ci_suite" in
-            (jessie|xenial)
-                # autoconf-archive in Debian 8 and Ubuntu 16.04 is too old,
-                # use the one from Debian 9 instead
-                wget http://deb.debian.org/debian/pool/main/a/autoconf-archive/autoconf-archive_20160916-1_all.deb
-                $sudo dpkg -i autoconf-archive_*_all.deb
-                rm autoconf-archive_*_all.deb
-                ;;
-        esac
 
         # Make sure we have a messagebus user, even if the dbus package
         # isn't installed
