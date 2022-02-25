@@ -49,6 +49,11 @@ NULL=
 # See ci-install.sh
 : "${ci_host:=native}"
 
+# ci_local_packages:
+# prefer local packages instead of distribution
+# See ci-install.sh
+: "${ci_local_packages:=yes}"
+
 # ci_parallel:
 # A number of parallel jobs, passed to make -j
 : "${ci_parallel:=1}"
@@ -98,40 +103,57 @@ maybe_fail_tests () {
 
 NOCONFIGURE=1 ./autogen.sh
 
-srcdir="$(pwd)"
-mkdir ci-build-${ci_variant}-${ci_host}
-cd ci-build-${ci_variant}-${ci_host}
+case "$ci_buildsys" in
+    (cmake-dist)
+        # clean up directories from possible previous builds
+        rm -rf ci-build-dist
+        # Do an Autotools `make dist`, then build *that* with CMake,
+        # to assert that our official release tarballs will be enough
+        # to build with CMake.
+        mkdir -p ci-build-dist
+        ( cd ci-build-dist; ../configure PYTHON=python3 )
+        make -C ci-build-dist dist
+        tar -zxvf ci-build-dist/dbus-1.*.tar.gz
+        cd dbus-1.*/
+        ;;
+esac
 
-make="make -j${ci_parallel} V=1 VERBOSE=1"
-
+#
+# cross compile setup
+#
 case "$ci_host" in
     (*-w64-mingw32)
-        mirror=http://repo.msys2.org/mingw/${ci_host%%-*}
-        if [ "${ci_host%%-*}" = i686 ]; then
-            mingw="$(pwd)/mingw32"
+        if [ "$ci_local_packages" = yes ]; then
+            dep_prefix=$(pwd)/${ci_host}-prefix
         else
-            mingw="$(pwd)/mingw64"
+            # assume the compiler was configured with a sysroot (e.g. openSUSE)
+            sysroot=$("${ci_host}-gcc" --print-sysroot)
+            # check if the prefix is a subdir of sysroot (e.g. openSUSE)
+            if [ -d "${sysroot}/${ci_host}" ]; then
+                dep_prefix="${sysroot}/${ci_host}"
+            else
+                # fallback: assume the dependency libraries were built with --prefix=/${ci_host}
+                dep_prefix="/${ci_host}"
+                export PKG_CONFIG_SYSROOT_DIR="${sysroot}"
+            fi
         fi
-        install -d "${mingw}"
-        export PKG_CONFIG_LIBDIR="${mingw}/lib/pkgconfig"
+
+        export PKG_CONFIG_LIBDIR="${dep_prefix}/lib/pkgconfig"
         export PKG_CONFIG_PATH=
-        export PKG_CONFIG="pkg-config --define-variable=prefix=${mingw}"
+        export PKG_CONFIG="pkg-config --define-variable=prefix=${dep_prefix}"
         unset CC
         unset CXX
-        for pkg in \
-            expat-2.1.0-6 \
-            gcc-libs-5.2.0-4 \
-            gettext-0.19.6-1 \
-            glib2-2.46.1-1 \
-            libffi-3.2.1-3 \
-            zlib-1.2.8-9 \
-            ; do
-            wget ${mirror}/mingw-w64-${ci_host%%-*}-${pkg}-any.pkg.tar.xz
-            tar -xvf mingw-w64-${ci_host%%-*}-${pkg}-any.pkg.tar.xz
-        done
         export TMPDIR=/tmp
         ;;
 esac
+
+srcdir="$(pwd)"
+# clean up directories from possible previous builds
+rm -rf ci-build-${ci_variant}-${ci_host}
+mkdir -p ci-build-${ci_variant}-${ci_host}
+cd ci-build-${ci_variant}-${ci_host}
+
+make="make -j${ci_parallel} V=1 VERBOSE=1"
 
 case "$ci_buildsys" in
     (autotools)
@@ -234,6 +256,7 @@ case "$ci_buildsys" in
             --enable-installed-tests \
             --enable-maintainer-mode \
             --enable-modular-tests \
+            PYTHON=python3 \
             "$@"
 
         ${make}
@@ -244,18 +267,9 @@ case "$ci_buildsys" in
         ${make} install DESTDIR=$(pwd)/DESTDIR
         ( cd DESTDIR && find . -ls )
 
-        case "$ci_suite" in
-            (jessie|xenial|stretch)
-                # these are too old for maintainer-upload-docs
-                ;;
-
-            (*)
-                # assume Ubuntu 18.04 'bionic', Debian 10 'buster' or newer
-                ${make} -C doc dbus-docs.tar.xz
-                tar -C $(pwd)/DESTDIR -xf doc/dbus-docs.tar.xz
-                ( cd DESTDIR/dbus-docs && find . -ls )
-                ;;
-        esac
+        ${make} -C doc dbus-docs.tar.gz
+        tar -C $(pwd)/DESTDIR -xf doc/dbus-docs.tar.gz
+        ( cd DESTDIR/dbus-docs && find . -ls )
 
         if [ "$ci_sudo" = yes ] && [ "$ci_test" = yes ]; then
             sudo ${make} install
@@ -281,18 +295,20 @@ case "$ci_buildsys" in
         fi
         ;;
 
-    (cmake)
+    (cmake|cmake-dist)
         case "$ci_host" in
             (*-w64-mingw32)
                 set _ "$@"
                 set "$@" -D CMAKE_TOOLCHAIN_FILE="${srcdir}/cmake/${ci_host}.cmake"
-                set "$@" -D CMAKE_PREFIX_PATH="${mingw}"
-                set "$@" -D CMAKE_INCLUDE_PATH="${mingw}/include"
-                set "$@" -D CMAKE_LIBRARY_PATH="${mingw}/lib"
-                set "$@" -D EXPAT_LIBRARY="${mingw}/lib/libexpat.dll.a"
-                set "$@" -D GLIB2_LIBRARIES="${mingw}/lib/libglib-2.0.dll.a"
-                set "$@" -D GOBJECT_LIBRARIES="${mingw}/lib/libgobject-2.0.dll.a"
-                set "$@" -D GIO_LIBRARIES="${mingw}/lib/libgio-2.0.dll.a"
+                set "$@" -D CMAKE_PREFIX_PATH="${dep_prefix}"
+                if [ "$ci_local_packages" = yes ]; then
+                    set "$@" -D CMAKE_INCLUDE_PATH="${dep_prefix}/include"
+                    set "$@" -D CMAKE_LIBRARY_PATH="${dep_prefix}/lib"
+                    set "$@" -D EXPAT_LIBRARY="${dep_prefix}/lib/libexpat.dll.a"
+                    set "$@" -D GLIB2_LIBRARIES="${dep_prefix}/lib/libglib-2.0.dll.a"
+                    set "$@" -D GOBJECT_LIBRARIES="${dep_prefix}/lib/libgobject-2.0.dll.a"
+                    set "$@" -D GIO_LIBRARIES="${dep_prefix}/lib/libgio-2.0.dll.a"
+                fi
                 shift
                 # don't run tests yet, Wine needs Xvfb and more
                 # msys2 libraries
