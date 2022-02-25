@@ -111,7 +111,7 @@ case "$ci_buildsys" in
         # to assert that our official release tarballs will be enough
         # to build with CMake.
         mkdir -p ci-build-dist
-        ( cd ci-build-dist; ../configure )
+        ( cd ci-build-dist; ../configure PYTHON=python3 )
         make -C ci-build-dist dist
         tar -zxvf ci-build-dist/dbus-1.*.tar.gz
         cd dbus-1.*/
@@ -256,6 +256,7 @@ case "$ci_buildsys" in
             --enable-installed-tests \
             --enable-maintainer-mode \
             --enable-modular-tests \
+            PYTHON=python3 \
             "$@"
 
         ${make}

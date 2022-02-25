@@ -177,9 +177,9 @@ case "$ci_distro" in
             libselinux1-dev
             libsystemd-dev
             libx11-dev
-            python
-            python-dbus
-            python-gi
+            python3
+            python3-dbus
+            python3-gi
             sudo
             valgrind
             wget
