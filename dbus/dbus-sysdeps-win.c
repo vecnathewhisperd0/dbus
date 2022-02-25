@@ -82,9 +82,6 @@ extern BOOL WINAPI ConvertSidToStringSidA (PSID Sid, LPSTR *StringSid);
 
 typedef int socklen_t;
 
-/* uncomment to enable windows event based poll implementation */
-//#define USE_CHRIS_IMPL
-
 void
 _dbus_win_set_errno (int err)
 {
@@ -1196,7 +1193,6 @@ oom:
   return result;
 }
 
-#ifdef USE_CHRIS_IMPL
 static dbus_bool_t
 _dbus_dump_fd_revents (DBusPollFD *fds, int n_fds)
 {
@@ -1232,7 +1228,7 @@ oom:
   _dbus_string_free (&msg);
   return result;
 }
-#else
+
 static dbus_bool_t
 _dbus_dump_fdset (DBusPollFD *fds, int n_fds, fd_set *read_set, fd_set *write_set, fd_set *err_set)
 {
@@ -1269,9 +1265,7 @@ oom:
   return result;
 }
 #endif
-#endif
 
-#ifdef USE_CHRIS_IMPL
 /**
  * Windows event based implementation for _dbus_poll().
  *
@@ -1316,6 +1310,19 @@ _dbus_poll_events (DBusPollFD *fds,
 
   for (i = 0; i < n_fds; i++)
     pEvents[i] = WSA_INVALID_EVENT;
+
+  for (i = 0; i < n_fds; i++)
+    pEvents[i] = WSA_INVALID_EVENT;
+
+#ifdef DBUS_ENABLE_VERBOSE_MODE
+  _dbus_verbose ("_dbus_poll: to=%d", timeout_milliseconds);
+  if (!_dbus_dump_fd_events (fds, n_fds))
+    {
+      _dbus_win_set_errno (ENOMEM);
+      ret = -1;
+      goto oom;
+    }
+#endif
 
   for (i = 0; i < n_fds; i++)
     {
@@ -1405,7 +1412,7 @@ oom:
 
   return ret;
 }
-#else
+
 /**
  * Select based implementation for _dbus_poll().
  *
@@ -1497,7 +1504,6 @@ _dbus_poll_select (DBusPollFD *fds,
 oom:
   return ready;
 }
-#endif
 
 /**
  * Wrapper for poll().
@@ -1512,11 +1518,17 @@ _dbus_poll (DBusPollFD *fds,
             int         n_fds,
             int         timeout_milliseconds)
 {
-#ifdef USE_CHRIS_IMPL
-  return _dbus_poll_events (fds, n_fds, timeout_milliseconds);
-#else
-  return _dbus_poll_select (fds, n_fds, timeout_milliseconds);
-#endif
+  static int use_events = -1;
+  if (use_events == -1)
+    {
+      char *s = getenv("DBUS_POLL_EVENTS");
+      use_events = s && *s == '1';
+    }
+  if (use_events)
+    return _dbus_poll_events (fds, n_fds, timeout_milliseconds);
+  else
+    return _dbus_poll_select (fds, n_fds, timeout_milliseconds);
+
 }
 
 /******************************************************************************

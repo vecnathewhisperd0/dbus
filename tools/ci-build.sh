@@ -403,6 +403,13 @@ case "$ci_buildsys" in
         # The test coverage for OOM-safety is too verbose to be useful on
         # travis-ci.
         export DBUS_TEST_MALLOC_FAILURES=0
+
+        case "$ci_variant" in
+            (poll-events)
+                export DBUS_POLL_EVENTS=1
+                ;;
+        esac
+
         [ "$ci_test" = no ] || $cmdwrapper ctest -VV --timeout 180 || maybe_fail_tests
         ${make} install DESTDIR=$(pwd)/DESTDIR
         ( cd DESTDIR && find . -ls)
