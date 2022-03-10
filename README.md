@@ -1,175 +1,330 @@
-Sections in this file describe:
- - introduction and overview
- - low-level vs. high-level API
- - version numbers
- - options to the configure script
- - ABI stability policy
 
-Introduction
-===
+# DBus
 
-D-Bus is a simple system for interprocess communication and coordination.
+*A lightweight interprocess communication system.*
 
-The "and coordination" part is important; D-Bus provides a bus daemon that does things like:
- - notify applications when other apps exit
- - start services on demand
- - support single-instance applications
+---
 
-See http://www.freedesktop.org/software/dbus/ for lots of documentation, 
-mailing lists, etc.
+ **[❮ Website ❯][Website]**
+ **[❮ Contribute ❯][Contribute]**
+ **[❮ FAQ ❯][FAQ]**
+ **[❮ Mailing List ❯][Mailing List]**
+ **[❮ Authors ❯][Authors]**
 
-See also the file CONTRIBUTING.md for notes of interest to developers
-working on D-Bus.
+---
 
-If you're considering D-Bus for use in a project, you should be aware
-that D-Bus was designed for a couple of specific use cases, a "system
-bus" and a "desktop session bus." These are documented in more detail
-in the D-Bus specification and FAQ available on the web site.
+<br>
 
-If your use-case isn't one of these, D-Bus may still be useful, but
-only by accident; so you should evaluate carefully whether D-Bus makes
-sense for your project.
+## Topics
 
-Security
-==
+**[<kbd> Introduction </kbd>](#Introduction)** 
+**[<kbd> Use Cases </kbd>](#Use-Cases)** 
+**[<kbd> API Levels </kbd>](#API-Levels)** 
+**[<kbd> Versioning </kbd>](#Versioning)**
 
-If you find a security vulnerability that is not known to the public,
-please report it privately to dbus-security@lists.freedesktop.org
-or by reporting a Gitlab issue at
-https://gitlab.freedesktop.org/dbus/dbus/issues/new and marking it
-as "confidential".
+**[<kbd> Configuration </kbd>](#Configuration)** 
+**[<kbd> Stability </kbd>](#Stability)** 
+**[<kbd> Bootstrapping </kbd>](#Bootstrapping)**
 
-On Unix systems, the system bus (dbus-daemon --system) is designed
-to be a security boundary between users with different privileges.
+<br>
 
-On Unix systems, the session bus (dbus-daemon --session) is designed
-to be used by a single user, and only accessible by that user.
+---
 
-We do not currently consider D-Bus on Windows to be security-supported,
-and we do not recommend allowing untrusted users to access Windows
-D-Bus via TCP.
+<br>
 
-Note: low-level API vs. high-level binding APIs
-===
+## Introduction
 
-A core concept of the D-Bus implementation is that "libdbus" is
-intended to be a low-level API. Most programmers are intended to use
-the bindings to GLib, Qt, Python, Mono, Java, or whatever. These
-bindings have varying levels of completeness and are maintained as
-separate projects from the main D-Bus package. The main D-Bus package
-contains the low-level libdbus, the bus daemon, and a few command-line
-tools such as dbus-launch.
+**D-Bus** is a simple system for ***inter-process communication*** and ***coordination***.
 
-If you use the low-level API directly, you're signing up for some
-pain. Think of the low-level API as analogous to Xlib or GDI, and the
-high-level API as analogous to Qt/GTK+/HTML.
+The coordination part is provided in <br>
+the form of a `bus daemon` that can:
+- Start services on demand
+- Support single-instance apps
+- Notify others when an app exits
 
-Version numbers
-===
+<br>
 
-D-Bus uses the common "Linux kernel" versioning system, where
-even-numbered minor versions are stable and odd-numbered minor
-versions are development snapshots.
+---
 
-So for example, development snapshots: 1.1.1, 1.1.2, 1.1.3, 1.3.4
-Stable versions: 1.0, 1.0.1, 1.0.2, 1.2.1, 1.2.3
+<br>
 
-All pre-1.0 versions were development snapshots.
+## Use Cases
 
-Development snapshots make no ABI stability guarantees for new ABI
-introduced since the last stable release. Development snapshots are
-likely to have more bugs than stable releases, obviously.
+**D-Bus** was designed as a `System Bus` / `Desktop Session Bus`.
 
-Configuration 
-===
+If your use-case isn't one of these, **D-Bus** <br>
+may still be useful, but only by accident.
 
-dbus could be build by using autotools or cmake. 
+***If so, should evaluate carefully whether*** <br>
+***D-Bus makes sense for your project***.
 
-When using autotools the configure step is initiated by running ./configure 
-with or without additional configuration flags. dbus requires GNU Make
-(on BSD systems, this is typically called gmake) or a "make" implementation
-with compatible extensions.
+For more information, check our the **[Specification][Specification]** / **[FAQ][FAQ]**
 
-When using cmake the configure step is initiated by running the cmake 
-program with or without additional configuration flags. 
+<br>
 
-Configuration flags
-===
+---
 
-When using autotools, run "./configure --help" to see the possible
-configuration options and environment variables.
+<br>
 
-When using cmake, inspect README.cmake to see the possible
-configuration options and environment variables.
-    
-API/ABI Policy
-===
+## Security
 
-Now that D-Bus has reached version 1.0, the objective is that all
-applications dynamically linked to libdbus will continue working
-indefinitely with the most recent system and session bus daemons.
 
- - The protocol will never be broken again; any message bus should 
-   work with any client forever. However, extensions are possible
-   where the protocol is extensible.
+If you find a not yet discovered **Security Vulnerability**, <br>
+please report it ***privately*** to:
+- Either [`dbus-security@lists.freedesktop.org`](mailto:dbus-security@lists.freedesktop.org)
+- Or as a **[Gitlab Issue][Issue]** and mark it as `confidential`
 
- - If the library API is modified incompatibly, we will rename it 
-   as in http://ometer.com/parallel.html - in other words, 
-   it will always be possible to compile against and use the older 
-   API, and apps will always get the API they expect.
+<br>
 
-Interfaces can and probably will be _added_. This means both new
-functions and types in libdbus, and new methods exported to
-applications by the bus daemon.
+### On Unix
 
-The above policy is intended to make D-Bus as API-stable as other
-widely-used libraries (such as GTK+, Qt, Xlib, or your favorite
-example). If you have questions or concerns they are very welcome on
-the D-Bus mailing list.
+The **System Bus** *`dbus-daemon --system`* <br>
+*is designed to be a security boundary* <br>
+*between users with different privileges.*
 
-NOTE ABOUT DEVELOPMENT SNAPSHOTS AND VERSIONING
+The **Session Bus** *`dbus-daemon --session`* <br>
+*is designed to be used by a single* <br>
+*user and only accessible by that user.*
 
-Odd-numbered minor releases (1.1.x, 1.3.x, 2.1.x, etc. -
-major.minor.micro) are devel snapshots for testing, and any new ABI
-they introduce relative to the last stable version is subject to
-change during the development cycle.
+<br>
 
-Any ABI found in a stable release, however, is frozen.
+### On Windows
 
-ABI will not be added in a stable series if we can help it. i.e. the
-ABI of 1.2.0 and 1.2.5 you can expect to be the same, while the ABI of
-1.4.x may add more stuff not found in 1.2.x.
+We do not currently consider **D-Bus** on **Windows** <br>
+to be security-supported and do not recommend <br>
+allowing untrusted users to access it via **TCP**.
 
-NOTE ABOUT STATIC LINKING
+<br>
 
-We are not yet firmly freezing all runtime dependencies of the libdbus
-library. For example, the library may read certain files as part of
-its implementation, and these files may move around between versions.
+---
 
-As a result, we don't yet recommend statically linking to
-libdbus. Also, reimplementations of the protocol from scratch might
-have to work to stay in sync with how libdbus behaves.
+<br>
 
-To lock things down and declare static linking and reimplementation to
-be safe, we'd like to see all the internal dependencies of libdbus
-(for example, files read) well-documented in the specification, and
-we'd like to have a high degree of confidence that these dependencies
-are supportable over the long term and extensible where required.
+## API Levels
 
-NOTE ABOUT HIGH-LEVEL BINDINGS
 
-Note that the high-level bindings are _separate projects_ from the
-main D-Bus package, and have their own release cycles, levels of
-maturity, and ABI stability policies. Please consult the documentation
-for your binding.
+A core concept of the **D-Bus Implementation** is <br>
+that `libdbus` is intended to be a **Low-Level API**.
 
-Bootstrapping D-Bus on new platforms
-===
+### Bindings
 
-A full build of dbus, with all regression tests enabled and run, depends
-on GLib. A full build of GLib, with all regression tests enabled and run,
-depends on dbus.
+**Most Programmers** are intended to use the <br>
+bindings to **GLib**, **Qt**, **Python**, **Mono**, **Java**, ...
 
-To break this cycle, don't enable full test coverage (for at least one
-of those projects) during bootstrapping. You can rebuild with full test
-coverage after you have built both dbus and GLib at least once.
+*These bindings have varying levels of completeness and are* <br>
+*maintained as separate projects from the main* ***D-Bus*** *package.*
+
+### Main Package
+
+The main **D-Bus Package** contains:
+- Commandline tools such as `dbus-launch`
+- The low-level `libdbus`
+- The bus daemon
+
+***If you use the low-level API directly, you're signing up for some pain.***
+
+Think of the low-level API as analogous to **Xlib** or **GDI**, <br>
+and the high-level API as analogous to **Qt** / **GTK+** / **HTML**.
+
+<br>
+
+---
+
+<br>
+
+## Versioning
+
+
+**D-Bus** uses the common `Linux kernel` versioning <br>
+system, where minor versions are distinguished by:
+
+| Version Number |         Type         |               Example                 |
+|----------------|----------------------|---------------------------------------|
+|      Even      |        Stable        | `1.0` `1.0.1` `1.0.2` `1.2.1` `1.2.3` |
+|      Odd       | Development Snapshot |    `1.1.1` `1.1.2` `1.1.3` `1.3.4`    |
+
+All versions before `1.0` are considered **Development Snapshots**.
+
+### Development Snapshots
+
+These version make no ***ABI Stability Guarantees*** <br>
+for new **ABI** introduced since the previous stable <br>
+release and are likely to have more bugs.
+
+<br>
+
+---
+
+<br>
+
+## Configuration
+
+**D-Bus** can be build with either **AutoTools** or **CMake**.
+
+*Optionally use additional configuration flags.*
+
+<br>
+
+### AutoTools
+
+**D-Bus** requires **GNU Make** or a `make` <br>
+implementation with compatible extensions.
+
+***BSD Systems*** *typically use `gmake`.*
+
+
+##### Setup
+
+Initiate the project with:
+
+```sh
+./configure
+```
+
+##### Flags
+
+Check for available configuration options with:
+
+```sh
+./configure --help
+```
+
+<br>
+
+### CMake
+
+
+##### Setup
+
+Initiate the project with:
+
+```sh
+cmake
+```
+
+##### Flags
+
+Check the [`README.cmake`][CMake] file for <br>
+available configuration options.
+
+<br>
+
+---
+
+<br>
+
+## Stability
+
+As of version `1.0`, the objective has been to indefinitely sustain <br>
+the working dynamic linking process of applications to `libdbus`.
+
+- The protocol will not be modified.
+
+- The protocol can be modified with extensions.
+
+- If the library API is becomes incompatibly it will be **[renamed]** <br>
+  to always be able to compile against and use the older API <br>
+  and have apps be provided with the right version.
+
+### Interfaces
+
+Interfaces can be added that will provide both new <br>
+functions as well as types in `libdbus`, as well as <br>
+methods to applications by the bus daemon.
+
+<br>
+<br>
+
+The above policy is intended to make **D-Bus** as ***API - stable*** <br>
+as other widely used libraries, such as **GTK+**, **Qt** or **XLib**.
+
+*If you have questions or concerns, you are* <br>
+*welcome to post them on the* ***[Mailing List]*** *.*
+
+<br>
+
+### ABI Changes
+
+**ABI**s found in stable releases are frozen.
+
+`1.2.0` <- **No Change** -> `1.2.5`
+
+`1.2.x` <- **Possible Change** -> `1.4.x`
+
+<br>
+
+### Static Linking
+
+We are not yet firmly freezing all runtime <br>
+dependencies of the `libdbus` library.
+
+*As an example, the library may read certain* <br>
+*files as part of its implementation, and these* <br>
+*files may move around between versions.*
+
+As a result, ***we don't yet recommend statically linking to `libdbus`***.
+
+#### Reimplementations
+
+Reimplementations of the protocol that <br>
+are made from scratch might have to work <br>
+to stay in sync with how `libdbus` behaves.
+
+#### Locking Requirements
+
+To lock things down and declare static linking and reimplementation <br>
+to be safe, we'd like to see all the internal dependencies of `libdbus` <br>
+well-documented in the specification, and we'd like to have a high <br>
+degree of confidence that these dependencies are supportable <br>
+over the long term and extensible where required.
+
+<br>
+
+### High-Level Bindings
+
+Note that the high-level bindings are ***separate projects*** <br>
+from the main **D-Bus Package**, and have their own:
+- Release Cycles
+- Levels of Maturity
+- ABI Stability Policies
+
+*Please consult the documentation for your binding.*
+
+<br>
+
+---
+
+<br>
+
+## Bootstrapping
+
+*D-Bus on new platforms.*
+
+
+A full build of **D-Bus**, with all regression <br>
+tests enabled and run, depends on **GLib**.
+
+A full build of **GLib**, with all regression <br>
+tests enabled and run, depends on **D-Bus**.
+
+
+*To break this cycle, don't enable full test coverage for* <br>
+*at least one of the two projects during bootstrapping.*
+
+You can rebuild with full test coverage after you <br>
+have built both **D-Bus** and **GLib** at least once.
+
+
+<!----------------------------------------------------------------------------->
+
+[Specification]: https://dbus.freedesktop.org/doc/dbus-specification.html
+[Mailing List]: http://lists.freedesktop.org/mailman/listinfo/dbus/
+[Website]: http://www.freedesktop.org/software/dbus/
+[FAQ]: https://dbus.freedesktop.org/doc/dbus-faq.html
+
+[Contribute]: ./CONTRIBUTING.md
+[Authors]: ./AUTHORS
+[CMake]: ./README.cmake
+
+[Renamed]: http://ometer.com/parallel.html
+[Issue]: https://gitlab.freedesktop.org/dbus/dbus/issues/new
