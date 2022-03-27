@@ -81,15 +81,32 @@ endif()
 
 #
 # docbook based documentation
-# 
-find_package(DocBookXSL)
+#
+set(DOCBOOK_MANPAGE_STYLESHEET "http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl")
+set(DOCBOOK_HTML_STYLESHEET "http://docbook.sourceforge.net/release/xsl/current/html/docbook.xsl")
 
-if(DOCBOOKXSL_DIR AND XSLTPROC_EXECUTABLE)
-    option(DBUS_ENABLE_XML_DOCS "build XML documentation" ON)
-    set(DBUS_XML_DOCS_ENABLED 1)
-    message(STATUS "xsltproc docbook generator found")
-    add_custom_target(xmldoc)
-    add_dependencies(doc xmldoc)
+if(XSLTPROC_EXECUTABLE)
+    set(STYLESHEETS_FOUND 1)
+
+    foreach(STYLESHEET ${DOCBOOK_MANPAGE_STYLESHEET} ${DOCBOOK_HTML_STYLESHEET})
+        execute_process(
+            COMMAND ${XSLTPROC_EXECUTABLE} --nonet ${STYLESHEET}
+            RESULT_VARIABLE DOCBOOK_XSL_NONS_RESULT
+        )
+
+        if(NOT DOCBOOK_XSL_NONS_RESULT EQUAL 0)
+            set(STYLESHEETS_FOUND 0)
+            message(WARNING "Could not find DocBook XSL stylesheets (${STYLESHEET}), make sure you have docbook-xsl-nons installed and your system catalog is updated (or XML_CATALOG_FILES points to docbook-xsl’s catalog file).")
+        endif()
+    endforeach()
+
+    if(STYLESHEETS_FOUND)
+        option(DBUS_ENABLE_XML_DOCS "build XML documentation" ON)
+        set(DBUS_XML_DOCS_ENABLED 1)
+        message(STATUS "xsltproc docbook generator found")
+        add_custom_target(xmldoc)
+        add_dependencies(doc xmldoc)
+    endif()
 endif()
 
 if(DBUS_ENABLE_XML_DOCS)
@@ -122,11 +139,11 @@ macro(add_docbook _target)
         endif()
         if(${_format} STREQUAL "man")
             set(_outname "${_target}.${ARGS_MAN_CATEGORY}")
-            set(STYLESHEET "${DOCBOOKXSL_DIR}/manpages/docbook.xsl")
+            set(STYLESHEET "${DOCBOOK_MANPAGE_STYLESHEET}")
             set(INSTALL_DIR ${CMAKE_INSTALL_DATADIR}/man/man${ARGS_MAN_CATEGORY})
         else()
             set(_outname "${_target}.${ARGS_MAN_CATEGORY}.html")
-            set(STYLESHEET "${DOCBOOKXSL_DIR}/html/docbook.xsl")
+            set(STYLESHEET "${DOCBOOK_HTML_STYLESHEET}")
             set(INSTALL_DIR ${CMAKE_INSTALL_DATADIR}/doc/dbus)
         endif()
         set(_outfile ${CMAKE_CURRENT_BINARY_DIR}/${_outname})
