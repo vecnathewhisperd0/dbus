@@ -213,5 +213,12 @@ elseif(SIZEOF_SHORT EQUAL 2)
     set(DBUS_INT16_TYPE "short")
 endif()
 
+# detect target prefix
+get_filename_component(COMPILER_BASE_NAME ${CMAKE_C_COMPILER} NAME_WE)
+if(COMPILER_BASE_NAME MATCHES ".*-.*-.*-.*")
+    string(REGEX REPLACE "^([0-9a-z_]+)-([0-9a-z]+)-([0-9a-z]+)-([-0-9a-z]+)$" "\\1-\\2-\\3" DBUS_TARGET_PREFIX ${COMPILER_BASE_NAME})
+    string(REGEX REPLACE "^([0-9a-z_]+)-([0-9a-z]+)-([0-9a-z]+)-([-0-9a-z]+)$" "\\1" DBUS_TARGET_ARCH ${COMPILER_BASE_NAME})
+endif()
+
 find_program(DOXYGEN doxygen)
 find_program(XMLTO xmlto)
