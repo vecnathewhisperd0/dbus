@@ -717,6 +717,10 @@ static_data = \
 
 EXTRA_DIST += $(static_data)
 
+# for testing cmake find_package support
+EXTRA_DIST += client-package/CMakeLists.txt
+EXTRA_DIST += client-package/test.c
+
 ## copy tests to builddir so that generated tests and static tests
 ## are all in one place.
 ## Note that we can't create the XDG_RUNTIME_DIR with permissions 0700

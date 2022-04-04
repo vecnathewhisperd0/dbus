@@ -22,6 +22,7 @@ if(CMAKE_MAJOR_VERSION GREATER 2)
 endif()
 
 option(DBUS_BUILD_TESTS "enable unit test code" ON)
+option(ENABLE_CLIENT_PACKAGE_TEST "enable test for building a client package" OFF)
 
 # detect version
 include(MacrosAutotools)
@@ -735,7 +736,8 @@ message("        install libexecdir:       ${CMAKE_INSTALL_FULL_LIBEXECDIR}    "
 message("        install bindir:           ${CMAKE_INSTALL_FULL_BINDIR}        ")
 message("        install sysconfdir:       ${CMAKE_INSTALL_FULL_SYSCONFDIR}    ")
 message("        install datadir:          ${CMAKE_INSTALL_FULL_DATADIR}       ")
-message("        source code location:     ${CMAKE_SOURCE_DIR}                 ")
+message("        source code location:     ${DBUS_SOURCE_DIR}                  ")
+message("        host prefix:              ${DBUS_TARGET_PREFIX}               ")
 message("        build dir:                ${CMAKE_BINARY_DIR}                 ")
 message("        c compiler:               ${C_COMPILER}                       ")
 message("        cflags:                   ${CMAKE_C_FLAGS}                    ")
