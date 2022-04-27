@@ -152,6 +152,7 @@ struct BusPolicy
   DBusList *at_console_false_rules; /**< console user policy rules where at_console="false"*/
 
   DBusHashTable *default_rules_by_name;
+  DBusList *default_prefix_rules;
   unsigned int n_default_rules;
 };
 
@@ -284,6 +285,9 @@ bus_policy_unref (BusPolicy *policy)
           _dbus_hash_table_unref (policy->default_rules_by_name);
           policy->default_rules_by_name = NULL;
         }
+
+      _dbus_list_foreach (&policy->default_prefix_rules, free_rule_func, NULL);
+      _dbus_list_clear (&policy->default_prefix_rules);
 
       dbus_free (policy);
     }
@@ -484,6 +488,17 @@ get_name_from_rule (BusPolicyRule *rule)
   return name;
 }
 
+static dbus_bool_t
+is_prefix_rule (BusPolicyRule *rule)
+{
+  if (rule->type == BUS_POLICY_RULE_SEND && rule->d.send.destination_is_prefix)
+    return TRUE;
+  if (rule->type == BUS_POLICY_RULE_OWN && rule->d.own.prefix)
+    return TRUE;
+
+  return FALSE;
+}
+
 dbus_bool_t
 bus_policy_append_default_rule (BusPolicy      *policy,
                                 BusPolicyRule  *rule)
@@ -495,22 +510,31 @@ bus_policy_append_default_rule (BusPolicy      *policy,
     }
   else
     {
-      DBusList **list;
-      BusPolicyRulesWithScore *rules;
-
-      rules = get_rules_by_string (policy->default_rules_by_name,
-                                   get_name_from_rule (rule));
-
-      if (rules == NULL)
-        return FALSE;
-
-      list = &rules->rules;
-
-      if (!_dbus_list_prepend (list, rule))
-        return FALSE;
-
       rule->score = ++policy->n_default_rules;
-      rules->score = rule->score;
+
+      if (is_prefix_rule (rule))
+        {
+          if (!_dbus_list_append (&policy->default_prefix_rules, rule))
+            return FALSE;
+        }
+      else
+        {
+          DBusList **list;
+          BusPolicyRulesWithScore *rules;
+
+          rules = get_rules_by_string (policy->default_rules_by_name,
+                                       get_name_from_rule (rule));
+
+          if (rules == NULL)
+            return FALSE;
+
+          list = &rules->rules;
+
+          if (!_dbus_list_prepend (list, rule))
+            return FALSE;
+
+          rules->score = rule->score;
+        }
     }
 
   bus_policy_rule_ref (rule);
@@ -767,6 +791,10 @@ bus_policy_merge (BusPolicy *policy,
                           to_absorb->n_default_rules,
                           policy->default_rules_by_name,
                           to_absorb->default_rules_by_name))
+    return FALSE;
+
+  if (!append_copy_of_policy_list (&policy->default_prefix_rules,
+                                   &to_absorb->default_prefix_rules))
     return FALSE;
 
   return TRUE;
@@ -1321,33 +1349,27 @@ check_rules_list (const DBusList       *rules,
 }
 
 static int
-check_rules_for_name (DBusHashTable        *rules,
-                      const char           *name,
-                      int                   score,
-                      const RuleParams     *params,
-                      dbus_int32_t         *toggles,
-                      dbus_bool_t          *log,
-                      const BusPolicyRule **matched_rule)
+check_rules_list_with_score (DBusList             *rules,
+                             int                   score,
+                             const RuleParams     *params,
+                             dbus_int32_t         *toggles,
+                             dbus_bool_t          *log,
+                             const BusPolicyRule **matched_rule,
+                             dbus_bool_t           break_on_first_match)
 {
   dbus_int32_t local_toggles;
   dbus_bool_t local_log;
   const BusPolicyRule *local_matched_rule;
-  const BusPolicyRulesWithScore *rules_list;
-
-  rules_list = _dbus_hash_table_lookup_string (rules, name);
-
-  if (rules_list == NULL || rules_list->score <= score)
-    return score;
 
   local_toggles = 0;
 
-  check_rules_list (rules_list->rules,
+  check_rules_list (rules,
                     FALSE,
                     params,
                     &local_toggles,
                     &local_log,
                     &local_matched_rule,
-                    TRUE);
+                    break_on_first_match);
 
   if (local_toggles > 0)
     {
@@ -1369,7 +1391,27 @@ check_rules_for_name (DBusHashTable        *rules,
 }
 
 static int
+check_rules_for_name (DBusHashTable        *rules,
+                      const char           *name,
+                      int                   score,
+                      const RuleParams     *params,
+                      dbus_int32_t         *toggles,
+                      dbus_bool_t          *log,
+                      const BusPolicyRule **matched_rule)
+{
+  const BusPolicyRulesWithScore *rules_list;
+
+  rules_list = _dbus_hash_table_lookup_string (rules, name);
+
+  if (rules_list == NULL || rules_list->score <= score)
+    return score;
+
+  return check_rules_list_with_score (rules_list->rules, score, params, toggles, log, matched_rule, TRUE);
+}
+
+static int
 find_and_check_rules_for_name (DBusHashTable        *rules,
+                               DBusList             *prefix_rules,
                                const char           *c_str,
                                int                   score,
                                const RuleParams     *params,
@@ -1377,41 +1419,22 @@ find_and_check_rules_for_name (DBusHashTable        *rules,
                                dbus_bool_t          *log,
                                const BusPolicyRule **matched_rule)
 {
-  char name[DBUS_MAXIMUM_NAME_LENGTH+2];
-  int pos = strlen(c_str);
+  score = check_rules_for_name (rules, c_str,
+                                score, params,
+                                toggles, log,
+                                matched_rule);
 
-  _dbus_assert (pos <= DBUS_MAXIMUM_NAME_LENGTH);
-
-  strncpy (name, c_str, sizeof(name)-1);
-
-  /*
-   * To check 'prefix' rules we not only need to check a name,
-   * but also every prefix of the name. For example,
-   * if name is 'foo.bar.baz.qux' we need to check rules for:
-   * - foo.bar.baz.qux
-   * - foo.bar.baz
-   * - foo.bar
-   * - foo
-   */
-  while (pos > 0)
-    {
-      score = check_rules_for_name (rules, name,
-                                    score, params,
-                                    toggles, log,
-                                    matched_rule);
-
-      /* strip the last component for next iteration */
-      while (pos > 0 && name[pos] != '.')
-        pos--;
-
-      name[pos] = 0;
-    }
+  score = check_rules_list_with_score (prefix_rules,
+                                       score, params,
+                                       toggles, log,
+                                       matched_rule, FALSE);
 
   return score;
 }
 
 static dbus_bool_t
 find_and_check_rules (DBusHashTable    *rules,
+                      DBusList         *prefix_rules,
                       const RuleParams *params,
                       dbus_int32_t     *toggles,
                       dbus_bool_t      *log)
@@ -1442,7 +1465,7 @@ find_and_check_rules (DBusHashTable    *rules,
               if (name[0] == ':')
                 continue;
 
-              score = find_and_check_rules_for_name (rules, name, score,
+              score = find_and_check_rules_for_name (rules, prefix_rules, name, score,
                                                      params, toggles, log, &matched_rule);
             }
         }
@@ -1457,12 +1480,12 @@ find_and_check_rules (DBusHashTable    *rules,
             rule_target_name = dbus_message_get_sender (params->u.sr.message);
 
           if (rule_target_name != NULL)
-            score = find_and_check_rules_for_name (rules, rule_target_name, score,
+            score = find_and_check_rules_for_name (rules, prefix_rules, rule_target_name, score,
                                                    params, toggles, log, &matched_rule);
         }
     }
   else
-    score = find_and_check_rules_for_name (rules, _dbus_string_get_const_data(params->u.own.name),
+    score = find_and_check_rules_for_name (rules, prefix_rules, _dbus_string_get_const_data(params->u.own.name),
                                            score, params, toggles, log, &matched_rule);
 
   /* check also wildcard rules */
@@ -1486,6 +1509,7 @@ check_policy (BusClientPolicy  *policy,
     *toggles = 0;
 
   allowed = find_and_check_rules (policy->policy->default_rules_by_name,
+                                  policy->policy->default_prefix_rules,
                                   params,
                                   toggles,
                                   log);
@@ -1625,6 +1649,7 @@ bus_policy_check_can_own (BusPolicy  *policy,
   params.u.own.name = service_name;
 
   return find_and_check_rules (policy->default_rules_by_name,
+                               policy->default_prefix_rules,
                                &params,
                                NULL,
                                NULL);
