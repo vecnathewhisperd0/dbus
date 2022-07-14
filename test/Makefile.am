@@ -826,11 +826,11 @@ CLEANFILES += \
 
 data/valid-config-files/session.conf: $(top_builddir)/bus/session.conf
 	$(AM_V_at)$(MKDIR_P) data/valid-config-files
-	$(AM_V_GEN)cp $< $@
+	$(AM_V_GEN)cp $? $@
 
 data/valid-config-files-system/system.conf: $(top_builddir)/bus/system.conf
 	$(AM_V_at)$(MKDIR_P) data/valid-config-files-system
-	$(AM_V_GEN)cp $< $@
+	$(AM_V_GEN)cp $? $@
 
 $(installable_test_meta): %.test: %$(EXEEXT) Makefile
 	$(AM_V_at)$(MKDIR_P) $(dir $@)
