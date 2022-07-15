@@ -96,6 +96,10 @@
 #include <systemd/sd-daemon.h>
 #endif
 
+#ifdef DBUS_ENABLE_VSOCK
+#include <linux/vm_sockets.h>
+#endif
+
 #if !DBUS_USE_SYNC
 #include <pthread.h>
 #endif
@@ -1582,6 +1586,193 @@ out:
 
   return fd;
 }
+
+#ifdef DBUS_ENABLE_VSOCK
+static dbus_bool_t
+_dbus_vsock_parse_cid (const char    *cid,
+                       unsigned int  *ret,
+                       DBusError     *error)
+{
+  DBusString cid_str;
+  unsigned long val;
+
+  _dbus_string_init_const (&cid_str, cid);
+
+  if (!_dbus_string_parse_uint (&cid_str, 0, &val, NULL) || val > _DBUS_UINT32_MAX)
+    {
+      dbus_set_error (error,
+                      DBUS_ERROR_BAD_ADDRESS,
+                      "Failed to parse vsock CID value '%s'", cid);
+      return FALSE;
+    }
+
+
+  *ret = val;
+  return TRUE;
+}
+
+static dbus_bool_t
+_dbus_vsock_parse_port (const char    *port,
+                        unsigned int  *ret,
+                        DBusError     *error)
+{
+  DBusString port_str;
+  unsigned long val;
+
+  _dbus_string_init_const (&port_str, port);
+
+  if (!_dbus_string_parse_uint (&port_str, 0, &val, NULL) || val > _DBUS_UINT32_MAX)
+    {
+      dbus_set_error (error,
+                      DBUS_ERROR_BAD_ADDRESS,
+                      "Failed to parse vsock port value '%s'", port);
+      return FALSE;
+    }
+
+  *ret = val;
+  return TRUE;
+}
+
+int
+_dbus_connect_vsock (const char    *cid,
+                     const char    *port,
+                     DBusError      *error)
+{
+  int fd;
+  struct sockaddr_vm sa;
+
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+
+  _DBUS_ZERO (sa);
+  sa.svm_family = AF_VSOCK;
+
+  if (!_dbus_vsock_parse_cid (cid, &sa.svm_cid, error) ||
+      !_dbus_vsock_parse_port (port, &sa.svm_port, error))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET(error);
+      return -1;
+    }
+
+  if (!_dbus_open_socket (&fd, AF_VSOCK, SOCK_STREAM, 0, error))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET(error);
+      return -1;
+    }
+
+  if (connect (fd, (struct sockaddr *) &sa, sizeof (sa)) < 0)
+    {
+      dbus_set_error (error,
+                      _dbus_error_from_errno (errno),
+                      "Failed to connect to vsock CID:%s port:%s: %s",
+                      cid, port, _dbus_strerror (errno));
+
+      _dbus_close (fd, NULL);
+      return -1;
+    }
+
+  if (!_dbus_set_fd_nonblocking (fd, error))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET (error);
+      _dbus_close (fd, NULL);
+      return -1;
+    }
+
+  return fd;
+}
+
+int
+_dbus_listen_vsock (const char *cid,
+                    const char *port,
+                    DBusString *retcid,
+                    DBusString *retport,
+                    DBusError  *error)
+{
+  struct sockaddr_vm sa;
+  int saved_errno;
+  int fd = -1;
+
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+  _DBUS_ZERO (sa);
+  sa.svm_family = AF_VSOCK;
+  sa.svm_cid = VMADDR_CID_ANY;
+  sa.svm_port = VMADDR_PORT_ANY;
+
+  if ((cid && !_dbus_vsock_parse_cid (cid, &sa.svm_cid, error)) ||
+      (port && !_dbus_vsock_parse_port (port, &sa.svm_port, error)))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET (error);
+      return -1;
+    }
+
+  if (!_dbus_open_socket (&fd, AF_VSOCK, SOCK_STREAM, 0, error))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET (error);
+      return -1;
+    }
+
+  if (bind (fd, (struct sockaddr *) &sa, sizeof (sa)) < 0)
+    {
+      saved_errno = errno;
+      _dbus_close (fd, NULL);
+      dbus_set_error (error, _dbus_error_from_errno (saved_errno),
+                      "Failed to bind VSOCK socket of CID:%u: port:%u: %s",
+                      sa.svm_cid, sa.svm_port, _dbus_strerror (saved_errno));
+      return -1;
+    }
+
+  if (!_dbus_set_fd_nonblocking (fd, error))
+    {
+      _DBUS_ASSERT_ERROR_IS_SET (error);
+      _dbus_close (fd, NULL);
+      return -1;
+    }
+
+  if (listen (fd, 30 /* backlog */) < 0)
+    {
+      saved_errno = errno;
+      dbus_set_error (error, _dbus_error_from_errno (saved_errno),
+                      "Failed to listen on VSOCK socket of CID:%u port:%u: %s",
+                      sa.svm_cid, sa.svm_port, _dbus_strerror (saved_errno));
+      _dbus_close (fd, NULL);
+      return -1;
+    }
+
+  if (!port || !cid)
+    {
+      int result;
+      socklen_t addrlen;
+
+      addrlen = sizeof (sa);
+      result = getsockname (fd, (struct sockaddr *) &sa, &addrlen);
+
+      if (result == -1)
+        {
+          saved_errno = errno;
+          dbus_set_error (error, _dbus_error_from_errno (saved_errno),
+                          "Failed to retrieve VSOCK socket name: %s",
+                          _dbus_strerror (saved_errno));
+          _dbus_close (fd, NULL);
+          return -1;
+        }
+    }
+
+  if (!_dbus_string_append_printf (retcid, "%u", sa.svm_cid))
+    {
+      dbus_set_error (error, DBUS_ERROR_NO_MEMORY, NULL);
+      _dbus_close (fd, NULL);
+      return -1;
+    }
+
+  if (!_dbus_string_append_printf (retport, "%u", sa.svm_port))
+    {
+      dbus_set_error (error, DBUS_ERROR_NO_MEMORY, NULL);
+      _dbus_close (fd, NULL);
+      return -1;
+    }
+
+  return fd;
+}
+#endif
 
 /**
  * Creates a socket and binds it to the given path, then listens on
@@ -4927,6 +5118,9 @@ _dbus_append_address_from_socket (DBusSocket  fd,
       struct sockaddr_un un;
       struct sockaddr_in ipv4;
       struct sockaddr_in6 ipv6;
+#ifdef DBUS_ENABLE_VSOCK
+      struct sockaddr_vm vm;
+#endif
   } socket;
   char hostip[INET6_ADDRSTRLEN];
   socklen_t size = sizeof (socket);
@@ -4998,7 +5192,20 @@ _dbus_append_address_from_socket (DBusSocket  fd,
         }
       /* not reached */
       break;
-
+#ifdef DBUS_ENABLE_VSOCK
+    case AF_VSOCK:
+      if (_dbus_string_append_printf (address, "vsock:cid=%u,port=%u",
+                                      socket.vm.svm_cid, socket.vm.svm_port))
+        {
+          return TRUE;
+        }
+      else
+        {
+          _DBUS_SET_OOM (error);
+          return FALSE;
+        }
+      break;
+#endif
     default:
       dbus_set_error (error,
                       _dbus_error_from_errno (EINVAL),

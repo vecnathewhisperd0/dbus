@@ -35,6 +35,10 @@
 
 #include <errno.h>
 #include <string.h>
+#ifdef DBUS_ENABLE_VSOCK
+#include <sys/socket.h>
+#include <linux/vm_sockets.h>
+#endif
 
 #include "test-utils-glib.h"
 
@@ -106,6 +110,15 @@ setup (Fixture *f,
       f->skip = TRUE;
       return;
     }
+
+#ifdef DBUS_ENABLE_VSOCK
+  if ((g_str_has_prefix (addr, "vsock:") &&
+       !test_check_vsock_works ()))
+    {
+      f->skip = TRUE;
+      return;
+    }
+#endif
 
   f->server = dbus_server_listen (addr, &f->e);
   assert_no_error (&f->e);
@@ -259,6 +272,28 @@ test_connect (Fixture *f,
       g_assert_cmpstr (dbus_address_entry_get_method (entries[0]), ==, "unix");
       /* No particular statement about the path here: for that see
        * setup_runtime() and setup_no_runtime() */
+    }
+#endif
+#ifdef DBUS_ENABLE_VSOCK
+  else if (g_strcmp0 (listening_address, "vsock:") == 0)
+    {
+      DBusString addr_str;
+      const char *cid = dbus_address_entry_get_value (entries[0], "cid");
+      const char *port = dbus_address_entry_get_value (entries[0], "port");
+
+      g_assert_cmpstr (dbus_address_entry_get_method (entries[0]), ==, "vsock");
+
+      g_assert_nonnull (cid);
+      g_assert_cmpstr (cid, ==, "4294967295");
+      dbus_free (address);
+      address = NULL;
+
+      _dbus_string_init (&addr_str);
+      _dbus_string_append_printf (&addr_str, "vsock:cid=%u,port=%s",
+                                  1 /* VMADDR_CID_LOCAL */, port);
+      _dbus_string_steal_data (&addr_str, &address);
+      _dbus_string_free (&addr_str);
+      g_assert_nonnull (address);
     }
 #endif
   else
@@ -521,6 +556,11 @@ main (int argc,
 
   g_test_add ("/message/bad-guid/unix", Fixture, "unix:tmpdir=/tmp", setup,
       test_bad_guid, teardown);
+#endif
+
+#ifdef DBUS_ENABLE_VSOCK
+  g_test_add ("/connect/vsock", Fixture, "vsock:", setup,
+      test_connect, teardown);
 #endif
 
   ret = g_test_run ();

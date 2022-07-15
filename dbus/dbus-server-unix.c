@@ -288,6 +288,29 @@ _dbus_server_listen_platform_specific (DBusAddressEntry *entry,
         }
     }
 #endif
+#ifdef DBUS_ENABLE_VSOCK
+  else if (strcmp (method, "vsock") == 0)
+    {
+      const char *vsock_cid_var = dbus_address_entry_get_value (entry, "cid");
+      const char *vsock_port_var = dbus_address_entry_get_value (entry, "port");
+      const char *vsock_allow_var = dbus_address_entry_get_value (entry, "allow");
+
+      *server_p = _dbus_server_new_for_vsock (vsock_cid_var, vsock_port_var,
+                                              vsock_allow_var, error);
+
+      if (*server_p != NULL)
+        {
+          _DBUS_ASSERT_ERROR_IS_CLEAR(error);
+          return DBUS_SERVER_LISTEN_OK;
+        }
+      else
+        {
+          _DBUS_ASSERT_ERROR_IS_SET(error);
+          return DBUS_SERVER_LISTEN_DID_NOT_CONNECT;
+        }
+
+    }
+#endif
   else
     {
       /* If we don't handle the method, we return NULL with the
