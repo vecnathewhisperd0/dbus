@@ -54,6 +54,8 @@ macro(add_test_executable _target _source)
     list(APPEND _env "DBUS_TEST_EXEC=${PREFIX}${DBUS_TEST_EXEC}")
     list(APPEND _env "DBUS_TEST_HOMEDIR=${PREFIX}${CMAKE_BINARY_DIR}/dbus")
     list(APPEND _env "DBUS_TEST_UNINSTALLED=1")
+    list(APPEND _env "G_TEST_BUILDDIR=${Z_DRIVE_IF_WINE}${PROJECT_BINARY_DIR}/test")
+    list(APPEND _env "G_TEST_SRCDIR=${Z_DRIVE_IF_WINE}${PROJECT_SOURCE_DIR}/test")
     set_tests_properties(${_target} PROPERTIES ENVIRONMENT "${_env}")
 endmacro(add_test_executable)
 
