@@ -20,7 +20,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-image: debian:buster-slim
+image: debian:bullseye-slim
 
 stages:
   - build
@@ -45,11 +45,11 @@ variables:
   ci_parallel: "2"
   ci_sudo: "yes"
   ci_distro: "debian"
-  ci_suite: "buster"
+  ci_suite: "bullseye"
 
 production:
   stage: build
-  image: "debian:buster-slim"
+  image: "debian:bullseye-slim"
   variables:
     ci_variant: "production"
   script: &script
@@ -58,7 +58,7 @@ production:
 
 debug:
   stage: build
-  image: "debian:buster-slim"
+  image: "debian:bullseye-slim"
   variables:
     ci_variant: "debug"
   script: *script
@@ -66,14 +66,13 @@ debug:
 reduced:
   stage: build
   when: manual
-  image: "debian:buster-slim"
+  image: "debian:bullseye-slim"
   variables:
     ci_variant: "reduced"
   script: *script
 
 legacy:
   stage: build
-  when: manual
   image: "debian:buster-slim"
   variables:
     ci_variant: "legacy"
@@ -81,7 +80,7 @@ legacy:
 
 cmake:
   stage: build
-  image: "debian:buster-slim"
+  image: "debian:bullseye-slim"
   variables:
     ci_buildsys: "cmake-dist"
   script: *script
