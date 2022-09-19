@@ -1,7 +1,19 @@
 dbus 1.12.24 (UNRELEASED)
 =========================
 
-...
+Fixes:
+
+• Don't crash if dbus-daemon is asked to watch more than 128 directories
+  for changes (dbus!302, Jan Tojnar)
+
+• On Windows, consistently use msvcrt.dll-style printf formats, fixing
+  builds with mingw-w64 8.0.0 (dbus#380, Simon McVittie)
+
+Tests and CI enhancements:
+
+• Use the latest MSYS2 packages for CI, fixing failure to download older
+  packages
+  (Ralf Habacker, Simon McVittie)
 
 dbus 1.12.22 (2022-02-25)
 =========================
