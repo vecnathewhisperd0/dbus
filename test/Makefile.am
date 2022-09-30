@@ -552,6 +552,8 @@ static_data = \
 	data/valid-messages/dict.message \
 	data/valid-messages/emptiness.message \
 	data/valid-messages/lots-of-arguments.message \
+	data/valid-messages/minimal.message-raw \
+	data/valid-messages/minimal.message-raw.hex \
 	data/valid-messages/no-padding.message \
 	data/valid-messages/opposite-endian.message \
 	data/valid-messages/recursive-types.message \
