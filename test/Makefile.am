@@ -764,6 +764,10 @@ static_data = \
 	data/valid-config-files-system/system.d/test.conf \
 	data/valid-messages/byteswap-fd-index.message-raw \
 	data/valid-messages/byteswap-fd-index.message-raw.hex \
+	data/valid-messages/everything-be.message-raw \
+	data/valid-messages/everything-be.message-raw.hex \
+	data/valid-messages/everything.message-raw \
+	data/valid-messages/everything.message-raw.hex \
 	data/valid-messages/minimal.message-raw \
 	data/valid-messages/minimal.message-raw.hex \
 	$(NULL)

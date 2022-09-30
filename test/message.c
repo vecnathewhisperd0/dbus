@@ -551,6 +551,8 @@ add_oom_test (const gchar *name,
 static const char *valid_messages[] =
 {
   "byteswap-fd-index",
+  "everything",
+  "everything-be",
   "minimal",
 };
 

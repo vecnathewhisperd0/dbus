@@ -1,0 +1,78 @@
+# Copyright 2022 Collabora Ltd.
+# SPDX-License-Identifier: MIT
+#
+# To output as binary:
+# sed -e 's/#.*//' test/data/valid-messages/everything-be.message-raw.hex |
+# xxd -p -r - test/data/valid-messages/everything-be.message-raw
+#
+# This is a valid message with every type and most headers included.
+
+# Offset % 0x10:
+# 0001 0203 0405 0607 0809 0a0b 0c0d 0e0f
+
+  42                                       # big-endian
+    01                                     # method call
+       07                                  # all flags defined as of 2022
+         01                                # major protocol version 1
+            0000 0056                      # message body is 0x56 = 86 bytes
+                      0000 0002            # serial number 2
+                                0000 0078  # header is an array of 0x78 =
+                                           #   120 bytes of struct (yv)
+  01                                       # object path
+    01                                     # signature is 1 byte
+       6f00                                # "o" \0
+            0000 0004                      # 4-byte object path
+                      2f66 6f6f 00         # "/foo" \0
+                                  00 0000  # padding to 8-byte boundary
+  02                                       # interface
+    01                                     # signature is 1 byte
+       7300                                # "s" \0
+            0000 0007                      # 7-byte interface
+                      666f 6f2e 6261 7200  # "foo.bar" \0
+  03                                       # member
+    01                                     # signature is 1 byte
+       7300                                # "s" \0
+            0000 0003                      # 3-byte member
+                      466f 6f00            # "Foo" \0
+                                0000 0000  # padding
+  06                                       # destination
+    01                                     # signature is 1 byte
+       7300                                # "s" \0
+            0000 0007                      # 7-byte string
+                      666f 6f2e 6261 7200  # "foo.bar" \0
+  07                                       # sender
+    01                                     # signature is 1 byte
+       7300                                # "s" \0
+            0000 0004                      # 4-byte string
+                      3a31 2e32 00         # ":1.2" \0
+                                  00 0000  # padding to 8-byte boundary
+  08                                       # body signature
+    01                                     # signature is 1 byte
+       6700                                # "g" \0
+            14                             # 0x14 = 20-byte string
+              79 6269 7478 6e71 646f 6861  # "ybitxnqdoha"
+  6828 7629 617b 7379 7d00                 # "h(v)a{sy}" \0
+                           0000 0000 0000  # padding to 8-byte boundary
+  09                                       # number of out-of-band Unix fds
+    01                                     # signature is 1 byte
+       7500                                # "u" \0
+            0000 0000                      # no fds
+                      1100 0000 0000 0001  # y = 0x11, padding, b = TRUE
+  1234 5678 0000 0000                      # i = 0x12345678, padding
+                      8888 8888 8888 8888  # t = 0x88...
+  ffff ffff ffff ffff                      # x = 0xff... = -1
+                      2222 3333            # n = 0x2222, q = 0x3333
+                                0000 0000  # padding
+  0000 0000 0000 0000                      # d = 0.0
+                      0000 0001            # o length 1 byte
+                                2f00       # "/" \0
+                                     0000  # padding to 4-byte boundary
+  0000 0000                                # h = 0th fd
+            0000 0000                      # ah = array of 0 fds
+                      0162 0000 0000 0001  # variant signature 'b', TRUE
+  0000 0006                                # array length 6 bytes
+            0000 0000                      # pad to 8-byte alignment for {}
+                      0000 0000 00         # empty string key, "" \0
+                                  ff       # byte value
+
+#sha1 b577de6b1b2f58b2a2fb4f5ec26ba149c2ba4ba2
