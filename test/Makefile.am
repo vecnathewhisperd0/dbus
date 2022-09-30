@@ -548,6 +548,8 @@ static_data = \
 	data/valid-config-files-system/many-rules.conf \
 	data/valid-config-files-system/system.d/test.conf \
 	data/valid-messages/array-of-array-of-uint32.message \
+	data/valid-messages/byteswap-fd-index.message-raw \
+	data/valid-messages/byteswap-fd-index.message-raw.hex \
 	data/valid-messages/dict-simple.message \
 	data/valid-messages/dict.message \
 	data/valid-messages/emptiness.message \
