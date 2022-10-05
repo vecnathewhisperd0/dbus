@@ -1,5 +1,9 @@
-dbus 1.12.24 (UNRELEASED)
+dbus 1.12.24 (2022-10-05)
 =========================
+
+This is a security update for the dbus 1.12.x old-stable branch, fixing
+the same issues as 1.14.4. It also backports some non-security fixes
+from 1.14.x, most of which were required by the tests for the CVE fixes.
 
 Behaviour changes:
 
