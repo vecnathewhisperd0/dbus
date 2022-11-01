@@ -208,7 +208,12 @@ case "$ci_buildsys" in
 esac
 
 mkdir -p "$builddir"
-builddir="$(realpath "$builddir")"
+
+if command -v realpath >/dev/null; then
+    builddir="$(realpath "$builddir")"
+else
+    builddir="$(bash -c 'cd "$1" && echo $PWD' -- "$builddir")"
+fi
 
 #
 # cross compile setup
