@@ -174,10 +174,12 @@ maybe_fail_tests () {
     fi
 }
 
-# Generate config.h.in and configure. We do this for both Autotools and
-# CMake builds, so that the CMake build can compare config.h.in with its
-# own checks.
-NOCONFIGURE=1 ./autogen.sh
+if [[ "$ci_buildsys" != "meson" ]]; then
+    # Generate config.h.in and configure. We do this for both Autotools and
+    # CMake builds, so that the CMake build can compare config.h.in with its
+    # own checks.
+    NOCONFIGURE=1 ./autogen.sh
+fi
 
 # clean up directories from possible previous builds
 if [ -z "$builddir" ]; then
