@@ -575,7 +575,7 @@ case "$ci_buildsys" in
 
         $meson_setup "$@" "$srcdir"
         meson compile -v
-        [ "$ci_test" = no ] || meson test --print-errorlogs
+        [ "$ci_test" = no ] || meson test --print-errorlogs || maybe_fail_tests
         DESTDIR=DESTDIR meson install
         ( cd DESTDIR && find . -ls)
         ;;
