@@ -454,7 +454,14 @@ case "$ci_buildsys" in
                 ;;
         esac
 
-        $cmake -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_WERROR=ON "$@" ..
+        cmake_werror=ON
+        case "$ci_host" in
+            (*-macOS)
+                cmake_werror=OFF
+                ;;
+        esac
+
+        $cmake -DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_WERROR="$cmake_werror" "$@" ..
 
         ${make}
         # The test coverage for OOM-safety is too verbose to be useful on

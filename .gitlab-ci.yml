@@ -541,7 +541,6 @@ macOS cmake:
   extends:
     - .build-env-macOS
     - .cmake-common
-  allow_failure: true # FIXME: cmake is failing to build
   when: manual
   stage: build
   script:
