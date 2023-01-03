@@ -105,6 +105,13 @@ AM_PROG_LIBTOOL
 AC_PROG_MKDIR_P
 PKG_PROG_PKG_CONFIG
 
+AX_CHECK_COMPILE_FLAG([-std=c11], [
+  CFLAGS+=" -std=c11"
+], [
+  echo "C compiler cannot compile C11 code"
+  exit -1
+])
+
 # TAP test driver support
 AC_PROG_AWK
 AC_REQUIRE_AUX_FILE([tap-driver.sh])
