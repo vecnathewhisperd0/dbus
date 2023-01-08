@@ -66,14 +66,6 @@
 
 #define TRACE_LOCKS 1
 
-#define CONNECTION_LOCK(connection)   do {                                      \
-    if (TRACE_LOCKS) { _dbus_verbose ("LOCK\n"); }   \
-    _dbus_rmutex_lock ((connection)->mutex);                                    \
-    TOOK_LOCK_CHECK (connection);                                               \
-  } while (0)
-
-#define CONNECTION_UNLOCK(connection) _dbus_connection_unlock (connection)
-
 #define SLOTS_LOCK(connection) do {                     \
     _dbus_rmutex_lock ((connection)->slot_mutex);       \
   } while (0)
@@ -391,7 +383,11 @@ _dbus_message_filter_unref (DBusMessageFilter *filter)
 void
 _dbus_connection_lock (DBusConnection *connection)
 {
-  CONNECTION_LOCK (connection);
+#ifdef TRACE_LOCKS
+  _dbus_verbose ("LOCK\n");
+#endif
+  _dbus_rmutex_lock ((connection)->mutex);
+  TOOK_LOCK_CHECK (connection);
 }
 
 /**
@@ -405,10 +401,9 @@ _dbus_connection_unlock (DBusConnection *connection)
   DBusList *expired_messages;
   DBusList *iter;
 
-  if (TRACE_LOCKS)
-    {
-      _dbus_verbose ("UNLOCK\n");
-    }
+#ifdef TRACE_LOCKS
+  _dbus_verbose ("UNLOCK\n");
+#endif
 
   /* If we had messages that expired (fell off the incoming or outgoing
    * queues) while we were locked, actually release them now */
@@ -595,9 +590,9 @@ dbus_connection_has_messages_to_send (DBusConnection *connection)
   
   _dbus_return_val_if_fail (connection != NULL, FALSE);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   v = _dbus_connection_has_messages_to_send_unlocked (connection);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return v;
 }
@@ -997,7 +992,7 @@ free_pending_call_on_hash_removal (void *data)
    */
   _dbus_connection_ref_unlocked (connection);
   _dbus_pending_call_unref_and_unlock (pending);
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_connection_unref_unlocked (connection);
 }
 
@@ -1048,7 +1043,7 @@ void
 _dbus_connection_remove_pending_call (DBusConnection  *connection,
                                       DBusPendingCall *pending)
 {
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_connection_detach_pending_call_and_unlock (connection, pending);
 }
 
@@ -1073,7 +1068,7 @@ _dbus_connection_acquire_io_path (DBusConnection *connection,
   _dbus_connection_ref_unlocked (connection);
 
   /* We will only touch io_path_acquired which is protected by our mutex */
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   
   _dbus_verbose ("locking io_path_mutex\n");
   _dbus_cmutex_lock (connection->io_path_mutex);
@@ -1127,7 +1122,7 @@ _dbus_connection_acquire_io_path (DBusConnection *connection,
   _dbus_verbose ("unlocking io_path_mutex\n");
   _dbus_cmutex_unlock (connection->io_path_mutex);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   
   HAVE_LOCK_CHECK (connection);
 
@@ -1362,18 +1357,18 @@ _dbus_connection_new_for_transport (DBusTransport *transport)
 
   connection->disconnect_message_link = disconnect_link;
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   
   if (!_dbus_transport_set_connection (transport, connection))
     {
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
 
       goto error;
     }
 
   _dbus_transport_ref (transport);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   _dbus_connection_trace_ref (connection, 0, 1, "new_for_transport");
   return connection;
@@ -1500,12 +1495,12 @@ _dbus_connection_handle_watch (DBusWatch                   *watch,
 
   _dbus_verbose ("start\n");
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (!_dbus_connection_acquire_io_path (connection, 1))
     {
       /* another thread is handling the message */
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
       return TRUE;
     }
 
@@ -1675,7 +1670,7 @@ connection_lookup_shared (DBusAddressEntry  *entry,
                * and then assert here that the connection is connected, but
                * that causes reentrancy headaches.
                */
-              CONNECTION_LOCK (connection);
+              _dbus_connection_lock (connection);
               if (_dbus_connection_get_is_connected_unlocked (connection))
                 {
                   _dbus_connection_ref_unlocked (connection);
@@ -1688,7 +1683,7 @@ connection_lookup_shared (DBusAddressEntry  *entry,
                   _dbus_verbose ("looked up existing connection to server guid %s but it was disconnected so ignoring it\n",
                                  guid);
                 }
-              CONNECTION_UNLOCK (connection);
+              _dbus_connection_unlock (connection);
             }
         }
       
@@ -1901,7 +1896,7 @@ _dbus_connection_open_internal (const char     *address,
               /* guid may be NULL */
               guid = dbus_address_entry_get_value (entries[i], "guid");
                   
-              CONNECTION_LOCK (connection);
+              _dbus_connection_lock (connection);
           
               if (!connection_record_shared_unlocked (connection, guid))
                 {
@@ -1911,7 +1906,7 @@ _dbus_connection_open_internal (const char     *address,
                   connection = NULL;
                 }
               else
-                CONNECTION_UNLOCK (connection);
+                _dbus_connection_unlock (connection);
             }
         }
       
@@ -1955,7 +1950,7 @@ _dbus_connection_close_possibly_shared (DBusConnection *connection)
   _dbus_assert (connection != NULL);
   _dbus_assert (connection->generation == _dbus_current_generation);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_connection_close_possibly_shared_and_unlock (connection);
 }
 
@@ -2112,7 +2107,7 @@ _dbus_connection_send_and_unlock (DBusConnection *connection,
   preallocated = _dbus_connection_preallocate_send_unlocked (connection);
   if (preallocated == NULL)
     {
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
       return FALSE;
     }
 
@@ -2152,7 +2147,7 @@ _dbus_connection_close_if_only_one_ref (DBusConnection *connection)
 {
   dbus_int32_t refcount;
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   refcount = _dbus_atomic_get (&connection->refcount);
   /* The caller should have at least one ref */
@@ -2161,7 +2156,7 @@ _dbus_connection_close_if_only_one_ref (DBusConnection *connection)
   if (refcount == 1)
     _dbus_connection_close_possibly_shared_and_unlock (connection);
   else
-    CONNECTION_UNLOCK (connection);
+    _dbus_connection_unlock (connection);
 }
 
 
@@ -2318,7 +2313,7 @@ connection_timeout_and_complete_all_pending_calls_unlocked (DBusConnection *conn
       _dbus_hash_iter_remove_entry (&iter);
 
       _dbus_pending_call_unref_and_unlock (pending);
-      CONNECTION_LOCK (connection);
+      _dbus_connection_lock (connection);
     }
   HAVE_LOCK_CHECK (connection);
 }
@@ -2356,7 +2351,7 @@ check_for_reply_and_update_dispatch_unlocked (DBusConnection  *connection,
       complete_pending_call_and_unlock (connection, pending, reply);
       dbus_message_unref (reply);
 
-      CONNECTION_LOCK (connection);
+      _dbus_connection_lock (connection);
       status = _dbus_connection_get_dispatch_status_unlocked (connection);
       _dbus_connection_update_dispatch_status_and_unlock (connection, status);
       dbus_pending_call_unref (pending);
@@ -2551,7 +2546,7 @@ _dbus_connection_block_pending_call (DBusPendingCall *pending)
   complete_pending_call_and_unlock (connection, pending, NULL);
 
   /* update user code on dispatch status */
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   status = _dbus_connection_get_dispatch_status_unlocked (connection);
   _dbus_connection_update_dispatch_status_and_unlock (connection, status);
   dbus_pending_call_unref (pending);
@@ -2938,12 +2933,12 @@ dbus_connection_close (DBusConnection *connection)
   _dbus_return_if_fail (connection != NULL);
   _dbus_return_if_fail (connection->generation == _dbus_current_generation);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
 #ifndef DBUS_DISABLE_CHECKS
   if (connection->shareable)
     {
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
 
       _dbus_warn_check_failed ("Applications must not close shared connections - see dbus_connection_close() docs. This is a bug in the application.");
       return;
@@ -2980,9 +2975,9 @@ dbus_connection_get_is_connected (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, FALSE);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   res = _dbus_connection_get_is_connected_unlocked (connection);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   
   return res;
 }
@@ -3002,9 +2997,9 @@ dbus_connection_get_is_authenticated (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, FALSE);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   res = _dbus_transport_try_to_authenticate (connection->transport);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   
   return res;
 }
@@ -3036,9 +3031,9 @@ dbus_connection_get_is_anonymous (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, FALSE);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   res = _dbus_transport_get_is_anonymous (connection->transport);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   
   return res;
 }
@@ -3081,9 +3076,9 @@ dbus_connection_get_server_id (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, NULL);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   id = _dbus_strdup (_dbus_transport_get_server_id (connection->transport));
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return id;
 }
@@ -3121,9 +3116,9 @@ dbus_connection_can_send_type(DBusConnection *connection,
   {
     dbus_bool_t b;
 
-    CONNECTION_LOCK(connection);
+    _dbus_connection_lock(connection);
     b = _dbus_transport_can_pass_unix_fd(connection->transport);
-    CONNECTION_UNLOCK(connection);
+    _dbus_connection_unlock(connection);
 
     return b;
   }
@@ -3151,9 +3146,9 @@ dbus_connection_set_exit_on_disconnect (DBusConnection *connection,
 {
   _dbus_return_if_fail (connection != NULL);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   connection->exit_on_disconnect = exit_on_disconnect != FALSE;
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 }
 
 /**
@@ -3172,12 +3167,12 @@ dbus_connection_preallocate_send (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, NULL);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   
   preallocated =
     _dbus_connection_preallocate_send_unlocked (connection);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return preallocated;
 }
@@ -3233,7 +3228,7 @@ dbus_connection_send_preallocated (DBusConnection       *connection,
                         (dbus_message_get_interface (message) != NULL &&
                          dbus_message_get_member (message) != NULL));
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
 #ifdef HAVE_UNIX_FD_PASSING
 
@@ -3243,7 +3238,7 @@ dbus_connection_send_preallocated (DBusConnection       *connection,
       /* Refuse to send fds on a connection that cannot handle
          them. Unfortunately we cannot return a proper error here, so
          the best we can is just return. */
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
       return;
     }
 
@@ -3310,7 +3305,7 @@ dbus_connection_send (DBusConnection *connection,
   _dbus_return_val_if_fail (connection != NULL, FALSE);
   _dbus_return_val_if_fail (message != NULL, FALSE);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
 #ifdef HAVE_UNIX_FD_PASSING
 
@@ -3320,7 +3315,7 @@ dbus_connection_send (DBusConnection *connection,
       /* Refuse to send fds on a connection that cannot handle
          them. Unfortunately we cannot return a proper error here, so
          the best we can is just return. */
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
       return FALSE;
     }
 
@@ -3416,7 +3411,7 @@ dbus_connection_send_with_reply (DBusConnection     *connection,
   if (pending_return)
     *pending_return = NULL;
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
 #ifdef HAVE_UNIX_FD_PASSING
 
@@ -3427,7 +3422,7 @@ dbus_connection_send_with_reply (DBusConnection     *connection,
          them. Unfortunately we cannot return a proper error here, so
          the best we can do is return TRUE but leave *pending_return
          as NULL. */
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
       return TRUE;
     }
 
@@ -3435,7 +3430,7 @@ dbus_connection_send_with_reply (DBusConnection     *connection,
 
    if (!_dbus_connection_get_is_connected_unlocked (connection))
     {
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
 
       return TRUE;
     }
@@ -3446,7 +3441,7 @@ dbus_connection_send_with_reply (DBusConnection     *connection,
 
   if (pending == NULL)
     {
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
       return FALSE;
     }
 
@@ -3497,7 +3492,7 @@ dbus_connection_send_with_reply (DBusConnection     *connection,
   return TRUE;
 
  error:
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
  error_unlocked:
   dbus_pending_call_unref (pending);
   return FALSE;
@@ -3551,15 +3546,15 @@ dbus_connection_send_with_reply_and_block (DBusConnection     *connection,
 
 #ifdef HAVE_UNIX_FD_PASSING
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   if (!_dbus_transport_can_pass_unix_fd(connection->transport) &&
       message->n_unix_fds > 0)
     {
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
       dbus_set_error(error, DBUS_ERROR_FAILED, "Cannot send file descriptors on this connection.");
       return NULL;
     }
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
 #endif
 
@@ -3653,7 +3648,7 @@ dbus_connection_flush (DBusConnection *connection)
 
   _dbus_return_if_fail (connection != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   status = _dbus_connection_flush_unlocked (connection);
   
@@ -3693,17 +3688,17 @@ _dbus_connection_read_write_dispatch (DBusConnection *connection,
     {
       _dbus_verbose ("doing dispatch\n");
       dbus_connection_dispatch (connection);
-      CONNECTION_LOCK (connection);
+      _dbus_connection_lock (connection);
     }
   else if (dstatus == DBUS_DISPATCH_NEED_MEMORY)
     {
       _dbus_verbose ("pausing for memory\n");
       _dbus_memory_pause_based_on_timeout (timeout_milliseconds);
-      CONNECTION_LOCK (connection);
+      _dbus_connection_lock (connection);
     }
   else
     {
-      CONNECTION_LOCK (connection);
+      _dbus_connection_lock (connection);
       if (_dbus_connection_get_is_connected_unlocked (connection))
         {
           _dbus_verbose ("doing iteration\n");
@@ -3727,7 +3722,7 @@ _dbus_connection_read_write_dispatch (DBusConnection *connection,
   else
     progress_possible = _dbus_connection_get_is_connected_unlocked (connection);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   dbus_connection_unref (connection);
 
@@ -3867,7 +3862,7 @@ dbus_connection_borrow_message (DBusConnection *connection)
   if (status != DBUS_DISPATCH_DATA_REMAINS)
     return NULL;
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   _dbus_connection_acquire_dispatch (connection);
 
@@ -3884,7 +3879,7 @@ dbus_connection_borrow_message (DBusConnection *connection)
   if (message == NULL)
     _dbus_connection_release_dispatch (connection);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   _dbus_message_trace_ref (message, -1, -1, "dbus_connection_borrow_message");
 
@@ -3912,7 +3907,7 @@ dbus_connection_return_message (DBusConnection *connection,
   _dbus_return_if_fail (message == connection->message_borrowed);
   _dbus_return_if_fail (connection->dispatch_acquired);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   
   _dbus_assert (message == connection->message_borrowed);
   
@@ -3947,7 +3942,7 @@ dbus_connection_steal_borrowed_message (DBusConnection *connection,
   _dbus_return_if_fail (message == connection->message_borrowed);
   _dbus_return_if_fail (connection->dispatch_acquired);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
  
   _dbus_assert (message == connection->message_borrowed);
 
@@ -4106,7 +4101,7 @@ dbus_connection_pop_message (DBusConnection *connection)
   if (status != DBUS_DISPATCH_DATA_REMAINS)
     return NULL;
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_connection_acquire_dispatch (connection);
   HAVE_LOCK_CHECK (connection);
   
@@ -4135,7 +4130,7 @@ _dbus_connection_acquire_dispatch (DBusConnection *connection)
   HAVE_LOCK_CHECK (connection);
 
   _dbus_connection_ref_unlocked (connection);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   
   _dbus_verbose ("locking dispatch_mutex\n");
   _dbus_cmutex_lock (connection->dispatch_mutex);
@@ -4154,7 +4149,7 @@ _dbus_connection_acquire_dispatch (DBusConnection *connection)
   _dbus_verbose ("unlocking dispatch_mutex\n");
   _dbus_cmutex_unlock (connection->dispatch_mutex);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_connection_unref_unlocked (connection);
 }
 
@@ -4331,7 +4326,7 @@ _dbus_connection_update_dispatch_status_and_unlock (DBusConnection    *connectio
 
       if (connection->exit_on_disconnect)
         {
-          CONNECTION_UNLOCK (connection);            
+          _dbus_connection_unlock (connection);
           
           _dbus_verbose ("Exiting on Disconnected signal\n");
           _dbus_exit (1);
@@ -4340,7 +4335,7 @@ _dbus_connection_update_dispatch_status_and_unlock (DBusConnection    *connectio
     }
   
   /* We drop the lock */
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   
   if (changed && function)
     {
@@ -4387,11 +4382,11 @@ dbus_connection_get_dispatch_status (DBusConnection *connection)
 
   _dbus_verbose ("start\n");
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   status = _dbus_connection_get_dispatch_status_unlocked (connection);
   
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return status;
 }
@@ -4590,7 +4585,7 @@ dbus_connection_dispatch (DBusConnection *connection)
 
   _dbus_verbose ("\n");
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   status = _dbus_connection_get_dispatch_status_unlocked (connection);
   if (status != DBUS_DISPATCH_DATA_REMAINS)
     {
@@ -4656,7 +4651,7 @@ dbus_connection_dispatch (DBusConnection *connection)
       complete_pending_call_and_unlock (connection, pending, message);
       pending = NULL; /* it's probably unref'd */
       
-      CONNECTION_LOCK (connection);
+      _dbus_connection_lock (connection);
       _dbus_verbose ("pending call completed in dispatch\n");
       result = DBUS_HANDLER_RESULT_HANDLED;
       goto out;
@@ -4693,7 +4688,7 @@ dbus_connection_dispatch (DBusConnection *connection)
   /* We're still protected from dispatch() reentrancy here
    * since we acquired the dispatcher
    */
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   
   link = _dbus_list_get_first_link (&filter_list_copy);
   while (link != NULL)
@@ -4720,7 +4715,7 @@ dbus_connection_dispatch (DBusConnection *connection)
   _dbus_list_clear_full (&filter_list_copy,
                          (DBusFreeFunction) _dbus_message_filter_unref);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (result == DBUS_HANDLER_RESULT_NEED_MEMORY)
     {
@@ -4752,7 +4747,7 @@ dbus_connection_dispatch (DBusConnection *connection)
                                                   message,
                                                   &found_object);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (result != DBUS_HANDLER_RESULT_NOT_YET_HANDLED)
     {
@@ -4875,9 +4870,9 @@ dbus_connection_dispatch (DBusConnection *connection)
        * We have a reference to the connection, and we don't use any cached
        * pointers to the connection's internals below this point, so it should
        * be safe to drop the lock and take it back. */
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
       dbus_message_unref (message);
-      CONNECTION_LOCK (connection);
+      _dbus_connection_lock (connection);
     }
 
   if (message_link != NULL)
@@ -4967,14 +4962,14 @@ dbus_connection_set_watch_functions (DBusConnection              *connection,
 
   _dbus_return_val_if_fail (connection != NULL, FALSE);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   retval = _dbus_watch_list_set_functions (connection->watches,
                                            add_function, remove_function,
                                            toggled_function,
                                            data, free_data_function);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return retval;
 }
@@ -5030,14 +5025,14 @@ dbus_connection_set_timeout_functions   (DBusConnection            *connection,
 
   _dbus_return_val_if_fail (connection != NULL, FALSE);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   retval = _dbus_timeout_list_set_functions (connection->timeouts,
                                              add_function, remove_function,
                                              toggled_function,
                                              data, free_data_function);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return retval;
 }
@@ -5067,7 +5062,7 @@ dbus_connection_set_wakeup_main_function (DBusConnection            *connection,
 
   _dbus_return_if_fail (connection != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   old_data = connection->wakeup_main_data;
   old_free_data = connection->free_wakeup_main_data;
 
@@ -5075,7 +5070,7 @@ dbus_connection_set_wakeup_main_function (DBusConnection            *connection,
   connection->wakeup_main_data = data;
   connection->free_wakeup_main_data = free_data_function;
   
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   /* Callback outside the lock */
   if (old_free_data)
@@ -5113,7 +5108,7 @@ dbus_connection_set_dispatch_status_function (DBusConnection             *connec
 
   _dbus_return_if_fail (connection != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   old_data = connection->dispatch_status_data;
   old_free_data = connection->free_dispatch_status_data;
 
@@ -5121,7 +5116,7 @@ dbus_connection_set_dispatch_status_function (DBusConnection             *connec
   connection->dispatch_status_data = data;
   connection->free_dispatch_status_data = free_data_function;
   
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   /* Callback outside the lock */
   if (old_free_data)
@@ -5187,7 +5182,7 @@ dbus_connection_get_socket(DBusConnection              *connection,
   _dbus_return_val_if_fail (connection != NULL, FALSE);
   _dbus_return_val_if_fail (connection->transport != NULL, FALSE);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   
   retval = _dbus_transport_get_socket_fd (connection->transport, &s);
 
@@ -5196,7 +5191,7 @@ dbus_connection_get_socket(DBusConnection              *connection,
       *fd = _dbus_socket_get_int (s);
     }
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return retval;
 }
@@ -5233,7 +5228,7 @@ dbus_connection_get_unix_user (DBusConnection *connection,
   _dbus_return_val_if_fail (connection != NULL, FALSE);
   _dbus_return_val_if_fail (uid != NULL, FALSE);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (!_dbus_transport_try_to_authenticate (connection->transport))
     result = FALSE;
@@ -5245,7 +5240,7 @@ dbus_connection_get_unix_user (DBusConnection *connection,
   _dbus_assert (!result);
 #endif
   
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return result;
 }
@@ -5269,7 +5264,7 @@ dbus_connection_get_unix_process_id (DBusConnection *connection,
   _dbus_return_val_if_fail (connection != NULL, FALSE);
   _dbus_return_val_if_fail (pid != NULL, FALSE);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (!_dbus_transport_try_to_authenticate (connection->transport))
     result = FALSE;
@@ -5277,7 +5272,7 @@ dbus_connection_get_unix_process_id (DBusConnection *connection,
     result = _dbus_transport_get_unix_process_id (connection->transport,
 						  pid);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return result;
 }
@@ -5304,7 +5299,7 @@ dbus_connection_get_adt_audit_session_data (DBusConnection *connection,
   _dbus_return_val_if_fail (data != NULL, FALSE);
   _dbus_return_val_if_fail (data_size != NULL, FALSE);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (!_dbus_transport_try_to_authenticate (connection->transport))
     result = FALSE;
@@ -5312,7 +5307,7 @@ dbus_connection_get_adt_audit_session_data (DBusConnection *connection,
     result = _dbus_transport_get_adt_audit_session_data (connection->transport,
 					    	         data,
 			  			         data_size);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return result;
 }
@@ -5350,11 +5345,11 @@ dbus_connection_set_unix_user_function (DBusConnection             *connection,
 
   _dbus_return_if_fail (connection != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_transport_set_unix_user_function (connection->transport,
                                           function, data, free_data_function,
                                           &old_data, &old_free_function);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   if (old_free_function != NULL)
     (* old_free_function) (old_data);
@@ -5370,7 +5365,7 @@ _dbus_connection_get_linux_security_label (DBusConnection  *connection,
   _dbus_assert (connection != NULL);
   _dbus_assert (label_p != NULL);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (!_dbus_transport_try_to_authenticate (connection->transport))
     result = FALSE;
@@ -5381,7 +5376,7 @@ _dbus_connection_get_linux_security_label (DBusConnection  *connection,
   _dbus_assert (!result);
 #endif
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return result;
 }
@@ -5393,14 +5388,14 @@ _dbus_connection_get_credentials (DBusConnection *connection)
 
   _dbus_assert (connection != NULL);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (!_dbus_transport_try_to_authenticate (connection->transport))
     result = NULL;
   else
     result = _dbus_transport_get_credentials (connection->transport);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return result;
 }
@@ -5445,7 +5440,7 @@ dbus_connection_get_windows_user (DBusConnection             *connection,
   _dbus_return_val_if_fail (connection != NULL, FALSE);
   _dbus_return_val_if_fail (windows_sid_p != NULL, FALSE);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (!_dbus_transport_try_to_authenticate (connection->transport))
     result = FALSE;
@@ -5457,7 +5452,7 @@ dbus_connection_get_windows_user (DBusConnection             *connection,
   _dbus_assert (!result);
 #endif
   
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   return result;
 }
@@ -5494,11 +5489,11 @@ dbus_connection_set_windows_user_function (DBusConnection              *connecti
 
   _dbus_return_if_fail (connection != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_transport_set_windows_user_function (connection->transport,
                                              function, data, free_data_function,
                                              &old_data, &old_free_function);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   if (old_free_function != NULL)
     (* old_free_function) (old_data);
@@ -5536,9 +5531,9 @@ dbus_connection_set_allow_anonymous (DBusConnection             *connection,
 {
   _dbus_return_if_fail (connection != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_transport_set_allow_anonymous (connection->transport, value);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 }
 
 /**
@@ -5568,9 +5563,9 @@ dbus_connection_set_builtin_filters_enabled (DBusConnection         *connection,
 {
   _dbus_return_if_fail (connection != NULL);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   connection->builtin_filters_enabled = value;
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 }
 
 /**
@@ -5596,9 +5591,9 @@ dbus_connection_set_route_peer_messages (DBusConnection             *connection,
 {
   _dbus_return_if_fail (connection != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   connection->route_peer_messages = value;
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 }
 
 /**
@@ -5639,13 +5634,13 @@ dbus_connection_add_filter (DBusConnection            *connection,
 
   _dbus_atomic_inc (&filter->refcount);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (!_dbus_list_append (&connection->filter_list,
                           filter))
     {
       _dbus_message_filter_unref (filter);
-      CONNECTION_UNLOCK (connection);
+      _dbus_connection_unlock (connection);
       return FALSE;
     }
 
@@ -5658,7 +5653,7 @@ dbus_connection_add_filter (DBusConnection            *connection,
   filter->user_data = user_data;
   filter->free_user_data_function = free_data_function;
         
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   return TRUE;
 }
 
@@ -5685,7 +5680,7 @@ dbus_connection_remove_filter (DBusConnection            *connection,
   _dbus_return_if_fail (connection != NULL);
   _dbus_return_if_fail (function != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   filter = NULL;
   
@@ -5707,7 +5702,7 @@ dbus_connection_remove_filter (DBusConnection            *connection,
       filter = NULL;
     }
   
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
 #ifndef DBUS_DISABLE_CHECKS
   if (filter == NULL)
@@ -5757,14 +5752,14 @@ _dbus_connection_register_object_path (DBusConnection              *connection,
   if (!_dbus_decompose_path (path, strlen (path), &decomposed_path, NULL))
     return FALSE;
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   retval = _dbus_object_tree_register (connection->objects,
                                        fallback,
                                        (const char **) decomposed_path, vtable,
                                        user_data, error);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   dbus_free_string_array (decomposed_path);
 
@@ -5933,7 +5928,7 @@ dbus_connection_unregister_object_path (DBusConnection              *connection,
   if (!_dbus_decompose_path (path, strlen (path), &decomposed_path, NULL))
       return FALSE;
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   _dbus_object_tree_unregister_and_unlock (connection->objects, (const char **) decomposed_path);
 
@@ -5968,11 +5963,11 @@ dbus_connection_get_object_path_data (DBusConnection *connection,
   if (!_dbus_decompose_path (path, strlen (path), &decomposed_path, NULL))
     return FALSE;
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   *data_p = _dbus_object_tree_get_user_data_unlocked (connection->objects, (const char**) decomposed_path);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 
   dbus_free_string_array (decomposed_path);
 
@@ -6004,7 +5999,7 @@ dbus_connection_list_registered (DBusConnection              *connection,
   if (!_dbus_decompose_path (parent_path, strlen (parent_path), &decomposed_path, NULL))
     return FALSE;
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   retval = _dbus_object_tree_list_registered_and_unlock (connection->objects,
 							 (const char **) decomposed_path,
@@ -6177,10 +6172,10 @@ dbus_connection_set_max_message_size (DBusConnection *connection,
 {
   _dbus_return_if_fail (connection != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_transport_set_max_message_size (connection->transport,
                                         size);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 }
 
 /**
@@ -6196,9 +6191,9 @@ dbus_connection_get_max_message_size (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, 0);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   res = _dbus_transport_get_max_message_size (connection->transport);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   return res;
 }
 
@@ -6216,10 +6211,10 @@ dbus_connection_set_max_message_unix_fds (DBusConnection *connection,
 {
   _dbus_return_if_fail (connection != NULL);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_transport_set_max_message_unix_fds (connection->transport,
                                             n);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 }
 
 /**
@@ -6235,9 +6230,9 @@ dbus_connection_get_max_message_unix_fds (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, 0);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   res = _dbus_transport_get_max_message_unix_fds (connection->transport);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   return res;
 }
 
@@ -6272,10 +6267,10 @@ dbus_connection_set_max_received_size (DBusConnection *connection,
 {
   _dbus_return_if_fail (connection != NULL);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_transport_set_max_received_size (connection->transport,
                                          size);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 }
 
 /**
@@ -6291,9 +6286,9 @@ dbus_connection_get_max_received_size (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, 0);
   
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   res = _dbus_transport_get_max_received_size (connection->transport);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   return res;
 }
 
@@ -6314,10 +6309,10 @@ dbus_connection_set_max_received_unix_fds (DBusConnection *connection,
 {
   _dbus_return_if_fail (connection != NULL);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   _dbus_transport_set_max_received_unix_fds (connection->transport,
                                              n);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 }
 
 /**
@@ -6333,9 +6328,9 @@ dbus_connection_get_max_received_unix_fds (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, 0);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   res = _dbus_transport_get_max_received_unix_fds (connection->transport);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   return res;
 }
 
@@ -6356,9 +6351,9 @@ dbus_connection_get_outgoing_size (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, 0);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   res = _dbus_counter_get_size_value (connection->outgoing_counter);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   return res;
 }
 
@@ -6376,7 +6371,7 @@ _dbus_connection_get_stats (DBusConnection *connection,
                             dbus_uint32_t  *out_peak_bytes,
                             dbus_uint32_t  *out_peak_fds)
 {
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
 
   if (in_messages != NULL)
     *in_messages = connection->n_incoming;
@@ -6399,7 +6394,7 @@ _dbus_connection_get_stats (DBusConnection *connection,
   if (out_peak_fds != NULL)
     *out_peak_fds = _dbus_counter_get_peak_unix_fd_value (connection->outgoing_counter);
 
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
 }
 #endif /* DBUS_ENABLE_STATS */
 
@@ -6417,9 +6412,9 @@ dbus_connection_get_outgoing_unix_fds (DBusConnection *connection)
 
   _dbus_return_val_if_fail (connection != NULL, 0);
 
-  CONNECTION_LOCK (connection);
+  _dbus_connection_lock (connection);
   res = _dbus_counter_get_unix_fd_value (connection->outgoing_counter);
-  CONNECTION_UNLOCK (connection);
+  _dbus_connection_unlock (connection);
   return res;
 }
 
