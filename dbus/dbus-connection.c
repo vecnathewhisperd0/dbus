@@ -384,7 +384,7 @@ void
 _dbus_connection_lock (DBusConnection *connection)
 {
 #ifdef TRACE_LOCKS
-  _dbus_verbose ("LOCK\n");
+  _dbus_verbose ("LOCK connection:%p mutex:%p\n", connection, connection->mutex);
 #endif
   _dbus_rmutex_lock ((connection)->mutex);
   TOOK_LOCK_CHECK (connection);
@@ -402,7 +402,7 @@ _dbus_connection_unlock (DBusConnection *connection)
   DBusList *iter;
 
 #ifdef TRACE_LOCKS
-  _dbus_verbose ("UNLOCK\n");
+  _dbus_verbose ("UNLOCK connection:%p mutex:%p\n", connection, connection->mutex);
 #endif
 
   /* If we had messages that expired (fell off the incoming or outgoing
