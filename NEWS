@@ -10,6 +10,15 @@ Denial of service fixes:
   should be compiled with checks but without assertions.
   (dbus#421, Ralf Habacker; thanks to Evgeny Vereshchagin)
 
+Other fixes:
+
+• Documentation:
+  · Consistently use Gitlab bug reporting URL (dbus!372, Marco Trevisan)
+
+• Tests fixes:
+  · Fix the test-apparmor-activation test after dbus#416
+    (dbus!380, Dave Jones)
+
 dbus 1.12.24 (2022-10-05)
 =========================
 
