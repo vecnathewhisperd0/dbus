@@ -557,6 +557,14 @@ case $host_os in
 			#define WORDS_BIGENDIAN 1
 			#endif
 		])
+
+		AC_SUBST(COREFOUNDATION)
+		COREFOUNDATION="-Wl,-framework,CoreFoundation"
+		AC_SUBST(IOKIT)
+		IOKIT="-Wl,-framework,IOKit"
+		LIBS="$LIBS $COREFOUNDATION $IOKIT"
+		AC_MSG_RESULT([COREFOUNDATION is set to $COREFOUNDATION])
+		AC_MSG_RESULT([IOKIT is set to $IOKIT])
 		;;
 	*)
 		AC_C_BIGENDIAN

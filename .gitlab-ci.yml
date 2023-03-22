@@ -501,4 +501,69 @@ freebsd meson:
     # See https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=263265.
     CI_BUILD_ARGS: "-Db_lundef=false"
 
+.build-env-macOS:
+  variables:
+    ci_host: macOS
+    ci_distro: "macOS"
+    ci_suite: "12.3"
+    ci_test_fatal: "no" # FIXME: not all tests are passing in darwin
+    macos_autotools_pkgs: |
+      autoconf automake libtool autoconf-archive pkgconfig
+  tags:
+    - gst-macos-12.3
+  before_script:
+    - pip3 install --upgrade pip
+    # Need to install and add certificates for Python
+    - pip3 install --upgrade certifi
+    - open /Applications/Python\ 3.8/Install\ Certificates.command
+    - export SSL_CERT_FILE=$(python3 -m certifi)
+    - export REQUESTS_CA_BUNDLE=$(python3 -m certifi)
+    - export NONINTERACTIVE=1
+
+.macOS-brew-snippets:
+  install:
+    - export HOMEBREW_INSTALL_FROM_API=1
+    - /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+macOS meson:
+  extends:
+    - .build-env-macOS
+    - .meson-common
+  variables:
+    ci_test_fatal: "no" # FIXME: not all tests are passing in darwin
+  tags:
+    - gst-macos-12.3
+  stage: build
+  script:
+    - pip3 install -U meson ninja
+    - ./tools/ci-build.sh
+
+macOS autotools:
+  extends:
+    - .build-env-macOS
+  tags:
+    - gst-macos-12.3
+  stage: build
+  script:
+    - !reference [.macOS-brew-snippets, install]
+    - brew install ${macos_autotools_pkgs}
+    - NOCONFIGURE=1 ./autogen.sh
+    - ./configure
+    - make
+    - make check || true
+
+macOS cmake:
+  extends:
+    - .build-env-macOS
+    - .cmake-common
+  allow_failure: true # FIXME: cmake is failing to build
+  when: manual
+  tags:
+    - gst-macos-12.3
+  stage: build
+  script:
+    - !reference [.macOS-brew-snippets, install]
+    - brew install ${macos_autotools_pkgs} cmake
+    - ./tools/ci-build.sh
+
 # vim:set sw=2 sts=2 et:

@@ -26,6 +26,16 @@ dbus_dependencies = [
     valgrind.partial_dependency(compile_args: true),
 ]
 
+if host_os == 'darwin'
+    dbus_dependencies += dependency('appleframeworks',
+        modules : [
+            'CoreFoundation',
+            'Foundation',
+            'IOKit',
+        ],
+    )
+endif
+
 # source code that goes in the installed client library
 # and is specific to library functionality
 dbus_lib_sources = [

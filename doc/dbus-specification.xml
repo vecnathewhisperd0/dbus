@@ -4351,6 +4351,14 @@
         <function>GetCurrentHwProfile</function></ulink> function.
       </para>
       <para>
+        On Darwin (macOs and iOS), the hardware IOPlatformUUID is used
+        with the punctuation removed. This can be obtained from the
+        <ulink url='https://developer.apple.com/documentation/iokit/kioplatformuuidkey/'>
+        <function>IOPlatformUUID</function></ulink> property from the
+        <ulink url='https://developer.apple.com/documentation/kernel/ioplatformexpertdevice'>
+        <function>IOPlatformExpertDevice</function></ulink> service.
+      </para>
+      <para>
         The UUID is intended to be per-instance-of-the-operating-system, so may represent
         a virtual machine running on a hypervisor, rather than a physical machine.
         Basically if two processes see the same UUID, they should also see the same

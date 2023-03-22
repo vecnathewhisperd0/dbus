@@ -102,6 +102,11 @@
 #include <pthread.h>
 #endif
 
+#if defined (__APPLE__)
+#include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/IOKitLib.h>
+#endif
+
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
@@ -4264,11 +4269,11 @@ _dbus_get_autolaunch_address (const char *scope,
  * the dbus configuration. Optionally try to create it
  * (only root can do this usually).
  *
- * On UNIX, reads a file that gets created by dbus-uuidgen
- * in a post-install script. On Windows, if there's a standard
- * machine uuid we could just use that, but I can't find one
- * with the right properties (the hardware profile guid can change
- * without rebooting I believe). If there's no standard one
+ * On UNIX (excluding darwin), reads a file that gets created by
+ * dbus-uuidgenin a post-install script. On Darwin it uses IOPlatformUUID.
+ * On Windows, if there's a standard machine uuid we could just use that,
+ * but I can't find one with the right properties (the hardware profile
+ * guid can change without rebooting I believe). If there's no standard one
  * we might want to use the registry instead of a file for
  * this, and I'm not sure how we'd ensure the uuid gets created.
  *
@@ -4282,6 +4287,7 @@ _dbus_read_local_machine_uuid (DBusGUID   *machine_id,
                                dbus_bool_t create_if_not_found,
                                DBusError  *error)
 {
+#if !defined (__APPLE__)
   DBusError our_error = DBUS_ERROR_INIT;
   DBusError etc_error = DBUS_ERROR_INIT;
   DBusString filename;
@@ -4333,6 +4339,94 @@ _dbus_read_local_machine_uuid (DBusGUID   *machine_id,
     return FALSE;
 
   return _dbus_write_uuid_file (&filename, machine_id, error);
+
+#else /* defined (__APPLE__) */
+
+  DBusString parsed;
+  DBusString decoded;
+  CFStringRef io_platform_uuid;
+  io_service_t service;
+  const char *platform_uuid;
+  size_t platform_uuid_length;
+  size_t i;
+
+  service =
+    IOServiceGetMatchingService (kIOMainPortDefault,
+                                 IOServiceMatching ("IOPlatformExpertDevice"));
+  io_platform_uuid =
+    IORegistryEntryCreateCFProperty (service, CFSTR ("IOPlatformUUID"),
+                                     kCFAllocatorDefault, 0);
+  platform_uuid = CFStringGetCStringPtr (io_platform_uuid, kCFStringEncodingASCII);
+  if (platform_uuid == NULL)
+    {
+      dbus_set_error (error, DBUS_ERROR_NOT_SUPPORTED,
+                      "Failed to get IOPlatformUUID from IOPlatformExpertDevice");
+      CFRelease (io_platform_uuid);
+      IOObjectRelease (service);
+      return FALSE;
+    }
+
+  platform_uuid_length = strlen (platform_uuid);
+  if (!_dbus_string_init_preallocated (&parsed, platform_uuid_length))
+    {
+      CFRelease (io_platform_uuid);
+      IOObjectRelease (service);
+      _DBUS_SET_OOM (error);
+      return FALSE;
+    }
+
+  for (i = 0; i < platform_uuid_length; i++)
+    {
+      if (isxdigit (platform_uuid[i]))
+        _dbus_string_append_byte (&parsed, tolower (platform_uuid[i]));
+    }
+
+  CFRelease (io_platform_uuid);
+  IOObjectRelease (service);
+
+  _dbus_string_chop_white (&parsed);
+  if (_dbus_string_get_length (&parsed) != DBUS_UUID_LENGTH_HEX)
+    {
+      dbus_set_error (error, DBUS_ERROR_NOT_SUPPORTED,
+                      "Invalid IOPlatformUUID from IOPlatformExpertDevice");
+      return FALSE;
+    }
+
+  if (!_dbus_string_init (&decoded))
+    {
+      _dbus_string_free (&parsed);
+      _DBUS_SET_OOM (error);
+      return FALSE;
+    }
+
+  if (!_dbus_string_hex_decode (&parsed, 0, NULL, &decoded, 0))
+    {
+      _DBUS_SET_OOM (error);
+      goto error;
+    }
+
+  if (_dbus_string_get_length (&decoded) != DBUS_UUID_LENGTH_BYTES)
+    {
+      dbus_set_error (error, DBUS_ERROR_INVALID_FILE_CONTENT,
+                      "UUID contains %d bytes of hex-encoded data instead of %d",
+                      _dbus_string_get_length (&decoded),
+                      DBUS_UUID_LENGTH_BYTES);
+      goto error;
+    }
+
+  _dbus_string_copy_to_buffer (&decoded, machine_id->as_bytes, DBUS_UUID_LENGTH_BYTES);
+  _DBUS_ASSERT_ERROR_IS_CLEAR (error);
+  goto out;
+
+ error:
+  _DBUS_ASSERT_ERROR_IS_SET (error);
+
+ out:
+  _dbus_string_free (&parsed);
+  _dbus_string_free (&decoded);
+
+  return !dbus_error_is_set (error);
+#endif
 }
 
 /**

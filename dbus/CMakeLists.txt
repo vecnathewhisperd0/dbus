@@ -334,6 +334,17 @@ else(WIN32)
     endif()
 endif()
 
+if(APPLE)
+   find_library(APPLE_CORE_FOUNDATION CoreFoundation)
+   find_library(APPLE_FOUNDATION Foundation)
+   find_library(APPLE_IO_KIT IOKit)
+
+   target_link_libraries(dbus-internal ${APPLE_CORE_FOUNDATION})
+   target_link_libraries(dbus-internal ${APPLE_FOUNDATION})
+   target_link_libraries(dbus-internal ${APPLE_IO_KIT})
+endif(APPLE)
+
+
 if(UNIX)
 # set version info
 endif()
