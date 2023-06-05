@@ -1,7 +1,16 @@
 dbus 1.12.27 (UNRELEASED)
 =========================
 
-...
+Fixes:
+
+• Documentation:
+  · Fix syntax of a code sample in dbus-api-design
+    (dbus!396; Yen-Chin, Lee)
+
+Tests and CI enhancements:
+
+• Fix CI pipelines after freedesktop/freedesktop#540
+  (dbus!405, dbus#456; Simon McVittie)
 
 dbus 1.12.26 (2023-02-08)
 =========================
