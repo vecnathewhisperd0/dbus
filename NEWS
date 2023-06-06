@@ -8,6 +8,11 @@ mainstream security support, in mid 2024. After it reaches end-of-life
 there will be no more 1.12.x releases, even if new security issues
 are discovered.
 
+dbus 1.12.30 (UNRELEASED)
+=========================
+
+...
+
 dbus 1.12.28 (2023-06-06)
 =========================
 
