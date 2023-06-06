@@ -1,7 +1,16 @@
 dbus 1.12.27 (UNRELEASED)
 =========================
 
-Fixes:
+Denial-of-service fixes:
+
+• Fix an assertion failure in dbus-daemon when a privileged Monitoring
+  connection (dbus-monitor, busctl monitor, gdbus monitor or similar)
+  is active, and a message from the bus driver cannot be delivered to a
+  client connection due to <deny> rules or outgoing message quota. This
+  is a denial of service if triggered maliciously by a local attacker.
+  (dbus#457; hongjinghao, Simon McVittie)
+
+Other fixes:
 
 • Documentation:
   · Fix syntax of a code sample in dbus-api-design
