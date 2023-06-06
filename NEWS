@@ -1,4 +1,14 @@
-dbus 1.12.27 (UNRELEASED)
+dbus 1.12.x branch
+==================
+
+The dbus 1.12.x branch was originally released in 2017, and is maintained
+for the benefit of long-term-support OS distributions such as Debian.
+It is planned to reach end-of-life status at the end of Debian 11
+mainstream security support, in mid 2024. After it reaches end-of-life
+there will be no more 1.12.x releases, even if new security issues
+are discovered.
+
+dbus 1.12.28 (2023-06-06)
 =========================
 
 Denial-of-service fixes:
