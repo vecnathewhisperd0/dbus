@@ -22,6 +22,7 @@ project('dbus',
     'c',
     version: '1.15.6',
     meson_version: '>=0.56',
+    default_options : ['c_std=c11', 'cpp_std=c++11'],
 )
 
 project_url = 'https://gitlab.freedesktop.org/dbus/dbus'

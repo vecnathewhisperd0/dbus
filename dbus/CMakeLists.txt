@@ -267,6 +267,10 @@ add_library(dbus-1 SHARED
     ${libdbus_HEADERS}
 )
 
+# Let CMake ensure that the compiler is invoked in a mode of at-least C[++]11 (or C++ 14, C++ 17, ...),
+# adding flags such as -std=gnu[++]11 if necessary. This applies to sources of the target dbus-1.
+target_compile_features(dbus-1 PRIVATE c_std_11 cxx_std_11)
+
 if(WIN32)
     if(DEFINED DBUS_LIBRARY_REVISION)
         set_target_properties(dbus-1 PROPERTIES SUFFIX "-${DBUS_LIBRARY_MAJOR}${CMAKE_SHARED_LIBRARY_SUFFIX}")

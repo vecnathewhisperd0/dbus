@@ -3,7 +3,20 @@ cmake_minimum_required(VERSION 3.9)
 # we do not need to have WIN32 defined
 set(CMAKE_LEGACY_CYGWIN_WIN32 0)
 
+# set used compiler standard
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 11)
+
 project(dbus)
+
+get_property(DBUS_C_KNOWN_FEATURES GLOBAL PROPERTY CMAKE_C_KNOWN_FEATURES)
+if (NOT "c_std_11" IN_LIST DBUS_C_KNOWN_FEATURES)
+    message(FATAL_ERROR "The C compiler does not support the expected standard")
+endif()
+get_property(DBUS_CXX_KNOWN_FEATURES GLOBAL PROPERTY CMAKE_CXX_KNOWN_FEATURES)
+if (NOT "cxx_std_11" IN_LIST DBUS_CXX_KNOWN_FEATURES)
+    message(FATAL_ERROR "The c++ compiler does not support the expected standard")
+endif()
 
 # where to look first for cmake modules, before ${CMAKE_ROOT}/Modules/ is checked
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
