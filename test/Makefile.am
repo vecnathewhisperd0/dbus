@@ -121,6 +121,9 @@ test_server_oom_LDADD = libdbus-testutils.la $(GLIB_LIBS)
 test_syslog_SOURCES = internals/syslog.c
 test_syslog_LDADD = libdbus-testutils.la $(GLIB_LIBS)
 
+test_userdb_SOURCES = internals/userdb.c
+test_userdb_LDADD =  libdbus-testutils.la $(GLIB_LIBS)
+
 test_variant_SOURCES = internals/variant.c
 test_variant_LDADD = libdbus-testutils.la $(GLIB_LIBS)
 
@@ -181,6 +184,7 @@ installable_tests += \
 	test-syntax \
 	test-syslog \
 	test-uid-permissions \
+	test-userdb \
 	test-variant \
 	$(NULL)
 
