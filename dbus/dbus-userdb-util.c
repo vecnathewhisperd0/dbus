@@ -406,31 +406,35 @@ _dbus_user_database_get_gid (DBusUserDatabase     *db,
  * @param uid the UID
  * @param group_ids return location for array of group IDs
  * @param n_group_ids return location for length of returned array
+ * @param error error to fill in on failure
  * @returns #TRUE if the UID existed and we got some credentials
  */
 dbus_bool_t
 _dbus_groups_from_uid (dbus_uid_t         uid,
                        dbus_gid_t       **group_ids,
-                       int               *n_group_ids)
+                       int               *n_group_ids,
+                       DBusError         *error)
 {
   DBusUserDatabase *db;
   const DBusUserInfo *info;
   *group_ids = NULL;
   *n_group_ids = 0;
 
-  /* FIXME: this can't distinguish ENOMEM from other errors */
   if (!_dbus_user_database_lock_system ())
-    return FALSE;
+    {
+      _DBUS_SET_OOM (error);
+      return FALSE;
+    }
 
   db = _dbus_user_database_get_system ();
   if (db == NULL)
     {
+      _DBUS_SET_OOM (error);
       _dbus_user_database_unlock_system ();
       return FALSE;
     }
 
-  if (!_dbus_user_database_get_uid (db, uid,
-                                    &info, NULL))
+  if (!_dbus_user_database_get_uid (db, uid, &info, error))
     {
       _dbus_user_database_unlock_system ();
       return FALSE;
@@ -443,6 +447,7 @@ _dbus_groups_from_uid (dbus_uid_t         uid,
       *group_ids = dbus_new (dbus_gid_t, info->n_group_ids);
       if (*group_ids == NULL)
         {
+          _DBUS_SET_OOM (error);
 	  _dbus_user_database_unlock_system ();
           return FALSE;
         }
@@ -473,7 +478,7 @@ _dbus_userdb_test (const char *test_data_dir)
   dbus_uid_t uid;
   unsigned long *group_ids;
   int n_group_ids, i;
-  DBusError error;
+  DBusError error = DBUS_ERROR_INIT;
 
   if (!_dbus_username_from_current_process (&username))
     _dbus_assert_not_reached ("didn't get username");
@@ -484,7 +489,7 @@ _dbus_userdb_test (const char *test_data_dir)
   if (!_dbus_get_user_id (username, &uid))
     _dbus_assert_not_reached ("didn't get uid");
 
-  if (!_dbus_groups_from_uid (uid, &group_ids, &n_group_ids))
+  if (!_dbus_groups_from_uid (uid, &group_ids, &n_group_ids, &error))
     _dbus_assert_not_reached ("didn't get groups");
 
   printf ("    Current user: %s homedir: %s gids:",
