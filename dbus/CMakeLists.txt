@@ -156,6 +156,7 @@ endif()
 ### to be unless they move to DBUS_SHARED_SOURCES later)
 set(DBUS_UTIL_SOURCES
     dbus-asv-util.c
+    dbus-file-util.c
     dbus-mainloop.c
     dbus-message-util.c
     dbus-shell.c
@@ -319,6 +320,7 @@ add_library(dbus-internal ${DBUS_INTERNAL_ADD_LIBRARY_OPTIONS}
 )
 target_link_libraries(dbus-internal dbus-1)
 if(WIN32)
+    target_compile_definitions(dbus-internal PUBLIC DBUS_STATIC_BUILD)
     if(WINCE)
         target_link_libraries(dbus-internal ws2)
     else(WINCE)

@@ -259,6 +259,7 @@ endif
 DBUS_UTIL_SOURCES=				\
 	dbus-asv-util.c				\
 	dbus-asv-util.h				\
+	dbus-file-util.c			\
 	dbus-mainloop.c				\
 	dbus-mainloop.h				\
 	dbus-message-util.c			\
