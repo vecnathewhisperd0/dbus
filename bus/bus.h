@@ -109,6 +109,7 @@ BusPolicy*        bus_context_get_policy                         (BusContext    
 
 BusClientPolicy*  bus_context_create_client_policy               (BusContext       *context,
                                                                   DBusConnection   *connection,
+                                                                  BusClientPolicy  *previous,
                                                                   DBusError        *error);
 int               bus_context_get_activation_timeout             (BusContext       *context);
 int               bus_context_get_auth_timeout                   (BusContext       *context);

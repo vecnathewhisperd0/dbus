@@ -111,7 +111,8 @@ dbus_bool_t _dbus_credentials_from_uid          (dbus_uid_t         user_id,
                                                  DBusCredentials   *credentials);
 dbus_bool_t _dbus_groups_from_uid		(dbus_uid_t            uid,
                                                  dbus_gid_t          **group_ids,
-                                                 int                  *n_group_ids);
+                                                 int                  *n_group_ids,
+                                                 DBusError            *error);
 DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_is_console_user               (dbus_uid_t         uid,
                                                  DBusError         *error);
