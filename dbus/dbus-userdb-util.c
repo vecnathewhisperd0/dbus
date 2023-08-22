@@ -152,7 +152,7 @@ _dbus_get_group_id (const DBusString  *groupname,
   if (!_dbus_user_database_lock_system ())
     return FALSE;
 
-  db = _dbus_user_database_get_system ();
+  db = _dbus_user_database_get_system (NULL);
   if (db == NULL)
     {
       _dbus_user_database_unlock_system ();
@@ -194,7 +194,7 @@ _dbus_get_user_id_and_primary_group (const DBusString  *username,
   if (!_dbus_user_database_lock_system ())
     return FALSE;
 
-  db = _dbus_user_database_get_system ();
+  db = _dbus_user_database_get_system (NULL);
   if (db == NULL)
     {
       _dbus_user_database_unlock_system ();
@@ -364,12 +364,9 @@ _dbus_groups_from_uid (dbus_uid_t         uid,
       return FALSE;
     }
 
-  db = _dbus_user_database_get_system ();
+  db = _dbus_user_database_get_system (error);
   if (db == NULL)
-    {
-      _DBUS_SET_OOM (error);
-      goto out;
-    }
+    goto out;
 
   if (!_dbus_user_database_get_uid (db, uid, &info, error))
     goto out;

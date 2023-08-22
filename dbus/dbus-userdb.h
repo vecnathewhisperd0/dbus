@@ -85,7 +85,7 @@ void           _dbus_group_info_unref           (DBusGroupInfo    *info);
 #endif /* DBUS_USERDB_INCLUDES_PRIVATE */
 
 DBUS_PRIVATE_EXPORT
-DBusUserDatabase* _dbus_user_database_get_system    (void);
+DBusUserDatabase* _dbus_user_database_get_system    (DBusError *error);
 DBUS_PRIVATE_EXPORT _DBUS_WARN_UNUSED_RESULT
 dbus_bool_t       _dbus_user_database_lock_system   (void);
 DBUS_PRIVATE_EXPORT
