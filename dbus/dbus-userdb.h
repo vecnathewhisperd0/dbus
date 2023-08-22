@@ -116,6 +116,7 @@ DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_username_from_current_process (const DBusString **username);
 DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_homedir_from_current_process  (const DBusString **homedir);
+DBUS_EMBEDDED_TESTS_EXPORT
 dbus_bool_t _dbus_homedir_from_uid              (dbus_uid_t         uid,
                                                  DBusString        *homedir);
 
