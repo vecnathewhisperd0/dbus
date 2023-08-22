@@ -981,8 +981,8 @@ _dbus_userdb_test (const char *test_data_dir)
   int n_group_ids, i;
   DBusError error = DBUS_ERROR_INIT;
 
-  if (!_dbus_username_from_current_process (&username))
-    _dbus_test_fatal ("didn't get username");
+  if (!_dbus_username_from_current_process (&username, &error))
+    _dbus_test_fatal ("didn't get username: %s: %s", error.name, error.message);
 
   if (!_dbus_homedir_from_current_process (&homedir))
     _dbus_test_fatal ("didn't get homedir");

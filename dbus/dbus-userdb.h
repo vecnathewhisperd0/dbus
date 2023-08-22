@@ -113,7 +113,8 @@ dbus_bool_t _dbus_is_a_number                   (const DBusString *str,
                                                  unsigned long    *num);
 
 DBUS_PRIVATE_EXPORT
-dbus_bool_t _dbus_username_from_current_process (const DBusString **username);
+dbus_bool_t _dbus_username_from_current_process (const DBusString **username,
+                                                 DBusError         *error);
 DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_homedir_from_current_process  (const DBusString **homedir);
 DBUS_EMBEDDED_TESTS_EXPORT
