@@ -289,7 +289,10 @@ init_system_db (DBusError *error)
       
       system_db = _dbus_user_database_new ();
       if (system_db == NULL)
-        return FALSE;
+        {
+          _DBUS_SET_OOM (error);
+          return FALSE;
+        }
 
       if (!_dbus_user_database_get_uid (system_db,
                                         _dbus_getuid (),
@@ -385,6 +388,7 @@ _dbus_user_database_get_system (DBusError *error)
   _dbus_assert (database_locked);
 
   init_system_db (error);
+  _DBUS_ASSERT_ERROR_XOR_BOOL (error, (system_db != NULL));
   return system_db;
 }
 
@@ -575,11 +579,10 @@ _dbus_credentials_add_from_user (DBusCredentials         *credentials,
       return FALSE;
     }
 
-  db = _dbus_user_database_get_system (NULL);
+  db = _dbus_user_database_get_system (error);
   if (db == NULL)
     {
       _dbus_user_database_unlock_system ();
-      _DBUS_SET_OOM (error);
       return FALSE;
     }
 

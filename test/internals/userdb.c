@@ -226,6 +226,7 @@ static void
 test_user_id_from_name (Fixture *f,
                         gconstpointer context G_GNUC_UNUSED)
 {
+  DBusError error = DBUS_ERROR_INIT;
   dbus_bool_t ret;
   dbus_uid_t uid = -1;
   dbus_gid_t gid = -1;
@@ -265,7 +266,8 @@ test_user_id_from_name (Fixture *f,
 
   uid = -1;
   gid = -1;
-  ret = _dbus_get_user_id_and_primary_group (&username, &uid, &gid);
+  ret = _dbus_get_user_id_and_primary_group (&username, &uid, &gid, &error);
+  test_assert_no_error (&error);
   g_assert_true (ret);
   g_assert_cmpint (uid, ==, 0);
   g_assert_cmpint (gid, >=, 0);
@@ -287,11 +289,15 @@ test_user_id_from_name (Fixture *f,
 
       uid = -1;
       gid = -1;
-      ret = _dbus_get_user_id_and_primary_group (&username, &uid, &gid);
+      ret = _dbus_get_user_id_and_primary_group (&username, &uid, &gid, &error);
+      g_assert_nonnull (error.name);
+      g_assert_nonnull (error.message);
       g_assert_false (ret);
-      g_test_message ("Getting uid/gid of nonexistent user failed as expected");
+      g_test_message ("Getting uid/gid of nonexistent user failed as expected: %s: %s",
+                      error.name, error.message);
       g_assert_cmpint (uid, <, 0);
       g_assert_cmpint (gid, <, 0);
+      dbus_error_free (&error);
 
       uid = -1;
       ret = _dbus_get_user_id (&username, &uid);

@@ -317,7 +317,7 @@ _dbus_verify_daemon_user (const char *user)
 
   _dbus_string_init_const (&u, user);
 
-  return _dbus_get_user_id_and_primary_group (&u, NULL, NULL);
+  return _dbus_get_user_id_and_primary_group (&u, NULL, NULL, NULL);
 }
 
 
@@ -340,13 +340,8 @@ _dbus_change_to_daemon_user  (const char    *user,
 
   _dbus_string_init_const (&u, user);
 
-  if (!_dbus_get_user_id_and_primary_group (&u, &uid, &gid))
-    {
-      dbus_set_error (error, DBUS_ERROR_FAILED,
-                      "User '%s' does not appear to exist?",
-                      user);
-      return FALSE;
-    }
+  if (!_dbus_get_user_id_and_primary_group (&u, &uid, &gid, error))
+    return FALSE;
 
   /* setgroups() only works if we are a privileged process,
    * so we don't return error on failure; the only possible

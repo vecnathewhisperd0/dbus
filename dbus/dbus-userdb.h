@@ -99,7 +99,8 @@ dbus_bool_t _dbus_get_group_id                  (const DBusString  *group_name,
 DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_get_user_id_and_primary_group (const DBusString  *username,
                                                  dbus_uid_t        *uid_p,
-                                                 dbus_gid_t        *gid_p);
+                                                 dbus_gid_t        *gid_p,
+                                                 DBusError         *error);
 dbus_bool_t _dbus_groups_from_uid		(dbus_uid_t            uid,
                                                  dbus_gid_t          **group_ids,
                                                  int                  *n_group_ids,
