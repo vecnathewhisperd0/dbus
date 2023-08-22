@@ -915,7 +915,7 @@ dbus_bool_t
 _dbus_parse_unix_user_from_config (const DBusString  *username,
                                    dbus_uid_t        *uid_p)
 {
-  return _dbus_get_user_id (username, uid_p);
+  return _dbus_get_user_id_and_primary_group (username, uid_p, NULL, NULL);
 
 }
 

@@ -258,12 +258,6 @@ test_user_id_from_name (Fixture *f,
 #endif
 
 #ifdef DBUS_UNIX
-  /* These functions only exist on Unix */
-  uid = -1;
-  ret = _dbus_get_user_id (&username, &uid);
-  g_assert_true (ret);
-  g_assert_cmpint (uid, ==, 0);
-
   uid = -1;
   gid = -1;
   ret = _dbus_get_user_id_and_primary_group (&username, &uid, &gid, &error);
@@ -298,12 +292,6 @@ test_user_id_from_name (Fixture *f,
       g_assert_cmpint (uid, <, 0);
       g_assert_cmpint (gid, <, 0);
       dbus_error_free (&error);
-
-      uid = -1;
-      ret = _dbus_get_user_id (&username, &uid);
-      g_assert_false (ret);
-      g_test_message ("Getting uid of nonexistent user failed as expected");
-      g_assert_cmpint (uid, <, 0);
     }
   else
     {
