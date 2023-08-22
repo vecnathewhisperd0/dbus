@@ -42,6 +42,8 @@ test_groups_from_uid (Fixture *f,
   dbus_bool_t ret;
 #ifdef DBUS_UNIX
   int i;
+  /* arbitrarily chosen, probably isn't a valid uid */
+  const dbus_uid_t not_a_uid = 31337;
 #endif
 
   /* We assume that uid 0 (root) is available on all Unix systems,
@@ -94,12 +96,11 @@ test_groups_from_uid (Fixture *f,
 
   errno = 0;
 
-  /* arbitrarily chosen, probably isn't a valid uid */
-  if (getpwuid (31337) == NULL)
+  if (getpwuid (not_a_uid) == NULL)
     {
-      g_test_message ("uid 31337 doesn't exist: %s",
-                      errno == 0 ? "(no errno)" : g_strerror (errno));
-      ret = _dbus_unix_groups_from_uid (31337, &gids, &n_gids, &error);
+      g_test_message ("uid " DBUS_UID_FORMAT " doesn't exist: %s",
+                      not_a_uid, errno == 0 ? "(no errno)" : g_strerror (errno));
+      ret = _dbus_unix_groups_from_uid (not_a_uid, &gids, &n_gids, &error);
       g_assert_nonnull (error.name);
       g_assert_nonnull (error.message);
       g_assert_false (ret);
@@ -115,7 +116,9 @@ test_groups_from_uid (Fixture *f,
     }
   else
     {
-      g_test_skip ("against our expectations, uid 31337 exists on this system");
+      g_test_skip_printf ("against our expectations, uid " DBUS_UID_FORMAT
+                          " exists on this system",
+                          not_a_uid);
     }
 #endif
 }
