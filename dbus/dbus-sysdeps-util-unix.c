@@ -1355,18 +1355,20 @@ out:
  * DBUS_DATADIR
  *
  * @param dirs the directory list we are returning
- * @returns #FALSE on OOM
+ * @param error return location for errors
+ * @returns #FALSE on error
  */
 
 dbus_bool_t
-_dbus_get_standard_session_servicedirs (DBusList **dirs)
+_dbus_get_standard_session_servicedirs (DBusList **dirs,
+                                        DBusError *error)
 {
   const char *xdg_data_home;
   const char *xdg_data_dirs;
-  DBusString servicedir_path;
+  DBusString servicedir_path = _DBUS_STRING_INIT_INVALID;
 
   if (!_dbus_string_init (&servicedir_path))
-    return FALSE;
+    goto oom;
 
   xdg_data_home = _dbus_getenv ("XDG_DATA_HOME");
   xdg_data_dirs = _dbus_getenv ("XDG_DATA_DIRS");
@@ -1381,9 +1383,8 @@ _dbus_get_standard_session_servicedirs (DBusList **dirs)
       const DBusString *homedir;
       DBusString local_share;
 
-      /* TODO: This could fail for a reason that is not OOM */
-      if (!_dbus_homedir_from_current_process (&homedir, NULL))
-        goto oom;
+      if (!_dbus_homedir_from_current_process (&homedir, error))
+        goto failed;
 
       if (!_dbus_string_append (&servicedir_path, _dbus_string_get_const_data (homedir)))
         goto oom;
@@ -1428,6 +1429,9 @@ _dbus_get_standard_session_servicedirs (DBusList **dirs)
   return TRUE;
 
  oom:
+  _DBUS_SET_OOM (error);
+failed:
+  _DBUS_ASSERT_ERROR_IS_SET (error);
   _dbus_string_free (&servicedir_path);
   return FALSE;
 }

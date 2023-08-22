@@ -908,11 +908,8 @@ start_busconfig_child (BusConfigParser   *parser,
 
       _dbus_assert (dirs == NULL);
 
-      if (!_dbus_get_standard_session_servicedirs (&dirs))
-        {
-          BUS_SET_OOM (error);
-          return FALSE;
-        }
+      if (!_dbus_get_standard_session_servicedirs (&dirs, error))
+        return FALSE;
 
       /* We have traditionally watched the standard session service
        * directories with inotify, and allowed service files whose names do not

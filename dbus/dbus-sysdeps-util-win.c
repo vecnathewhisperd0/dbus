@@ -1515,17 +1515,19 @@ _dbus_set_up_transient_session_servicedirs (DBusList  **dirs,
  * relocated DBUS_DATADIR
  *
  * @param dirs the directory list we are returning
- * @returns #FALSE on OOM
+ * @param error return location for errors
+ * @returns #FALSE on error
  */
 
 dbus_bool_t
-_dbus_get_standard_session_servicedirs (DBusList **dirs)
+_dbus_get_standard_session_servicedirs (DBusList **dirs,
+                                        DBusError *error)
 {
   const char *common_progs;
-  DBusString servicedir_path;
+  DBusString servicedir_path = _DBUS_STRING_INIT_INVALID;
 
   if (!_dbus_string_init (&servicedir_path))
-    return FALSE;
+    goto oom;
 
 #ifdef DBUS_WINCE
   {
@@ -1591,6 +1593,7 @@ _dbus_get_standard_session_servicedirs (DBusList **dirs)
   return TRUE;
 
  oom:
+  _DBUS_SET_OOM (error);
   _dbus_string_free (&servicedir_path);
   return FALSE;
 }
