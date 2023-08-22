@@ -163,6 +163,90 @@ test_info_from_uid (Fixture *f,
 }
 
 static void
+test_user_id_from_name (Fixture *f,
+                        gconstpointer context G_GNUC_UNUSED)
+{
+  dbus_bool_t ret;
+  dbus_uid_t uid = -1;
+  dbus_gid_t gid = -1;
+  DBusString username;
+
+  /* We assume here that root is always uid 0 on Unix */
+  _dbus_string_init_const (&username, "root");
+
+  /* We assume that uid 0 (root) is available on all Unix systems,
+   * so this should succeed */
+  ret = _dbus_verify_daemon_user (_dbus_string_get_const_data (&username));
+
+#ifdef DBUS_UNIX
+  g_assert_true (ret);
+#else
+  /* TODO: Surely this should fail for any username on Windows? At the moment,
+   * it succeeds for any username... for now we make no assertion either way */
+#endif
+
+  ret = _dbus_parse_unix_user_from_config (&username, &uid);
+
+#ifdef DBUS_UNIX
+  g_assert_true (ret);
+  g_assert_cmpint (uid, ==, 0);
+#else
+  g_assert_false (ret);
+  g_test_message ("Parsing Unix user on Windows failed as expected");
+  g_assert_cmpint (uid, <, 0);
+#endif
+
+#ifdef DBUS_UNIX
+  /* These functions only exist on Unix */
+  uid = -1;
+  ret = _dbus_get_user_id (&username, &uid);
+  g_assert_true (ret);
+  g_assert_cmpint (uid, ==, 0);
+
+  uid = -1;
+  gid = -1;
+  ret = _dbus_get_user_id_and_primary_group (&username, &uid, &gid);
+  g_assert_true (ret);
+  g_assert_cmpint (uid, ==, 0);
+  g_assert_cmpint (gid, >=, 0);
+
+  /* arbitrarily chosen, probably isn't a valid username */
+  _dbus_string_init_const (&username, "not-a-user");
+
+  if (getpwnam (_dbus_string_get_const_data (&username)) == NULL)
+    {
+      ret = _dbus_verify_daemon_user (_dbus_string_get_const_data (&username));
+      g_assert_false (ret);
+      g_test_message ("Verifying nonexistent user failed as expected");
+
+      uid = -1;
+      ret = _dbus_parse_unix_user_from_config (&username, &uid);
+      g_assert_false (ret);
+      g_assert_cmpint (uid, <, 0);
+      g_test_message ("Parsing nonexistent user failed as expected");
+
+      uid = -1;
+      gid = -1;
+      ret = _dbus_get_user_id_and_primary_group (&username, &uid, &gid);
+      g_assert_false (ret);
+      g_test_message ("Getting uid/gid of nonexistent user failed as expected");
+      g_assert_cmpint (uid, <, 0);
+      g_assert_cmpint (gid, <, 0);
+
+      uid = -1;
+      ret = _dbus_get_user_id (&username, &uid);
+      g_assert_false (ret);
+      g_test_message ("Getting uid of nonexistent user failed as expected");
+      g_assert_cmpint (uid, <, 0);
+    }
+  else
+    {
+      g_test_skip ("our improbably-named user exists?!");
+    }
+#endif
+}
+
+static void
 teardown (Fixture *f G_GNUC_UNUSED,
           gconstpointer context G_GNUC_UNUSED)
 {
@@ -178,6 +262,8 @@ main (int argc,
 
   g_test_add ("/userdb/info_from_uid",
               Fixture, NULL, setup, test_info_from_uid, teardown);
+  g_test_add ("/userdb/user_id_from_name",
+              Fixture, NULL, setup, test_user_id_from_name, teardown);
 
   ret = g_test_run ();
   dbus_shutdown ();
