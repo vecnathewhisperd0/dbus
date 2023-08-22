@@ -93,7 +93,8 @@ void              _dbus_user_database_unlock_system (void);
 void              _dbus_user_database_flush_system  (void);
 
 dbus_bool_t _dbus_get_group_id                  (const DBusString  *group_name,
-                                                 dbus_gid_t        *gid);
+                                                 dbus_gid_t        *gid,
+                                                 DBusError         *error);
 DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_get_user_id_and_primary_group (const DBusString  *username,
                                                  dbus_uid_t        *uid_p,

@@ -932,7 +932,7 @@ dbus_bool_t
 _dbus_parse_unix_group_from_config (const DBusString  *groupname,
                                     dbus_gid_t        *gid_p)
 {
-  return _dbus_get_group_id (groupname, gid_p);
+  return _dbus_get_group_id (groupname, gid_p, NULL);
 }
 
 /**

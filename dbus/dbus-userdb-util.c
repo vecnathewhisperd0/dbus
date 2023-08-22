@@ -129,35 +129,36 @@ _dbus_is_console_user (dbus_uid_t uid,
  */
 dbus_bool_t
 _dbus_get_group_id (const DBusString  *groupname,
-                    dbus_gid_t        *gid)
+                    dbus_gid_t        *gid,
+                    DBusError         *error)
 {
   DBusUserDatabase *db;
   const DBusGroupInfo *info;
+  dbus_bool_t ret = FALSE;
 
-  /* FIXME: this can't distinguish ENOMEM from other errors */
   if (!_dbus_user_database_lock_system ())
-    return FALSE;
-
-  db = _dbus_user_database_get_system (NULL);
-  if (db == NULL)
     {
-      _dbus_user_database_unlock_system ();
+      _DBUS_SET_OOM (error);
       return FALSE;
     }
+
+  db = _dbus_user_database_get_system (error);
+  if (db == NULL)
+    goto out;
 
   info = _dbus_user_database_lookup_group (db, DBUS_GID_UNSET, groupname,
-                                           NULL);
+                                           error);
 
   if (info == NULL)
-    {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
-    }
+    goto out;
 
   *gid = info->gid;
-  
+  ret = TRUE;
+
+out:
   _dbus_user_database_unlock_system ();
-  return TRUE;
+  _DBUS_ASSERT_ERROR_XOR_BOOL (error, ret);
+  return ret;
 }
 
 /**
