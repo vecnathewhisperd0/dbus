@@ -237,13 +237,15 @@ test_user_id_from_name (Fixture *f,
 
   /* We assume that uid 0 (root) is available on all Unix systems,
    * so this should succeed */
-  ret = _dbus_verify_daemon_user (_dbus_string_get_const_data (&username));
+  ret = _dbus_verify_daemon_user (_dbus_string_get_const_data (&username), &error);
 
 #ifdef DBUS_UNIX
+  test_assert_no_error (&error);
   g_assert_true (ret);
 #else
   /* TODO: Surely this should fail for any username on Windows? At the moment,
    * it succeeds for any username... for now we make no assertion either way */
+  dbus_error_free (&error);
 #endif
 
   ret = _dbus_parse_unix_user_from_config (&username, &uid);
@@ -271,9 +273,13 @@ test_user_id_from_name (Fixture *f,
 
   if (getpwnam (_dbus_string_get_const_data (&username)) == NULL)
     {
-      ret = _dbus_verify_daemon_user (_dbus_string_get_const_data (&username));
+      ret = _dbus_verify_daemon_user (_dbus_string_get_const_data (&username), &error);
+      g_assert_nonnull (error.name);
+      g_assert_nonnull (error.message);
       g_assert_false (ret);
-      g_test_message ("Verifying nonexistent user failed as expected");
+      g_test_message ("Verifying nonexistent user failed as expected: %s: %s",
+                      error.name, error.message);
+      dbus_error_free (&error);
 
       uid = -1;
       ret = _dbus_parse_unix_user_from_config (&username, &uid);

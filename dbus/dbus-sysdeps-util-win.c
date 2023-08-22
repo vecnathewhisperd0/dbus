@@ -240,8 +240,10 @@ _dbus_write_pid_to_file_and_pipe (const DBusString *pidfile,
  * @returns #TRUE if username is valid
  */
 dbus_bool_t
-_dbus_verify_daemon_user (const char *user)
+_dbus_verify_daemon_user (const char *user,
+                          DBusError  *error)
 {
+  /* TODO: Surely this should fail with set_unix_uid_unsupported()? */
   return TRUE;
 }
 
