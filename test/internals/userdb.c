@@ -167,6 +167,7 @@ static void
 test_group_id_from_name (Fixture *f,
                          gconstpointer context G_GNUC_UNUSED)
 {
+  DBusError error = DBUS_ERROR_INIT;
   dbus_bool_t ret;
   dbus_gid_t gid = -1;
   DBusString name;
@@ -190,10 +191,11 @@ test_group_id_from_name (Fixture *f,
 
 #ifdef DBUS_UNIX
   /* This function only exists on Unix */
-  ret = _dbus_get_group_id (&name, &gid);
+  ret = _dbus_get_group_id (&name, &gid, &error);
 
   if (getgrnam (_dbus_string_get_const_data (&name)) != NULL)
     {
+      test_assert_no_error (&error);
       g_assert_true (ret);
       g_assert_cmpint (gid, >=, 0);
     }
@@ -210,10 +212,14 @@ test_group_id_from_name (Fixture *f,
       g_test_message ("Parsing nonexistent group failed as expected");
 
       gid = -1;
-      ret = _dbus_get_group_id (&name, &gid);
+      ret = _dbus_get_group_id (&name, &gid, &error);
+      g_assert_nonnull (error.name);
+      g_assert_nonnull (error.message);
       g_assert_false (ret);
-      g_test_message ("Getting gid of nonexistent group failed as expected");
+      g_test_message ("Getting gid of nonexistent group failed as expected: %s: %s",
+                      error.name, error.message);
       g_assert_cmpint (gid, <, 0);
+      dbus_error_free (&error);
     }
   else
     {
