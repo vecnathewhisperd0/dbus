@@ -121,20 +121,6 @@ _dbus_is_console_user (dbus_uid_t uid,
 }
 
 /**
- * Gets user ID given username
- *
- * @param username the username
- * @param uid return location for UID
- * @returns #TRUE if username existed and we got the UID
- */
-dbus_bool_t
-_dbus_get_user_id (const DBusString  *username,
-                   dbus_uid_t        *uid)
-{
-  return _dbus_get_user_id_and_primary_group (username, uid, NULL, NULL);
-}
-
-/**
  * Gets group ID given groupname
  *
  * @param groupname the groupname
