@@ -248,14 +248,17 @@ test_user_id_from_name (Fixture *f,
   dbus_error_free (&error);
 #endif
 
-  ret = _dbus_parse_unix_user_from_config (&username, &uid);
+  ret = _dbus_parse_unix_user_from_config (&username, &uid, &error);
 
 #ifdef DBUS_UNIX
+  test_assert_no_error (&error);
   g_assert_true (ret);
   g_assert_cmpint (uid, ==, 0);
 #else
+  g_assert_cmpstr (error.name, ==, DBUS_ERROR_NOT_SUPPORTED);
   g_assert_false (ret);
-  g_test_message ("Parsing Unix user on Windows failed as expected");
+  g_test_message ("Parsing Unix user on Windows failed as expected: %s: %s",
+                  error.name, error.message);
   g_assert_cmpint (uid, <, 0);
 #endif
 
@@ -282,10 +285,14 @@ test_user_id_from_name (Fixture *f,
       dbus_error_free (&error);
 
       uid = -1;
-      ret = _dbus_parse_unix_user_from_config (&username, &uid);
+      ret = _dbus_parse_unix_user_from_config (&username, &uid, &error);
+      g_assert_nonnull (error.name);
+      g_assert_nonnull (error.message);
       g_assert_false (ret);
       g_assert_cmpint (uid, <, 0);
-      g_test_message ("Parsing nonexistent user failed as expected");
+      g_test_message ("Parsing nonexistent user failed as expected: %s: %s",
+                      error.name, error.message);
+      dbus_error_free (&error);
 
       uid = -1;
       gid = -1;

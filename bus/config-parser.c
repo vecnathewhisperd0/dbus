@@ -1127,7 +1127,8 @@ start_busconfig_child (BusConfigParser   *parser,
           _dbus_string_init_const (&username, user);
 
           if (_dbus_parse_unix_user_from_config (&username,
-                                                 &e->d.policy.gid_uid_or_at_console))
+                                                 &e->d.policy.gid_uid_or_at_console,
+                                                 NULL))
             e->d.policy.type = POLICY_USER;
           else
             _dbus_warn ("Unknown username \"%s\" in message bus configuration file",
@@ -1760,7 +1761,7 @@ append_rule_from_element (BusConfigParser   *parser,
           
           _dbus_string_init_const (&username, user);
       
-          if (_dbus_parse_unix_user_from_config (&username, &uid))
+          if (_dbus_parse_unix_user_from_config (&username, &uid, NULL))
             {
               rule = bus_policy_rule_new (BUS_POLICY_RULE_USER, allow); 
               if (rule == NULL)

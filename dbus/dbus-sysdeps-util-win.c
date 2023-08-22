@@ -703,8 +703,10 @@ _dbus_parse_unix_group_from_config (const DBusString  *groupname,
  */
 dbus_bool_t
 _dbus_parse_unix_user_from_config (const DBusString  *username,
-                                   dbus_uid_t        *uid_p)
+                                   dbus_uid_t        *uid_p,
+                                   DBusError         *error)
 {
+  set_unix_uid_unsupported (error);
   return FALSE;
 }
 
