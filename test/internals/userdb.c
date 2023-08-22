@@ -33,9 +33,12 @@ setup (Fixture *f G_GNUC_UNUSED,
 }
 
 static void
-test_groups_from_uid (Fixture *f,
-                      gconstpointer context G_GNUC_UNUSED)
+test_info_from_uid (Fixture *f,
+                    gconstpointer context G_GNUC_UNUSED)
 {
+#if defined(DBUS_UNIX) && defined(DBUS_ENABLE_EMBEDDED_TESTS)
+  DBusString homedir = _DBUS_STRING_INIT_INVALID;
+#endif
   DBusError error = DBUS_ERROR_INIT;
   dbus_gid_t *gids = NULL;
   int n_gids = -1;
@@ -62,6 +65,15 @@ test_groups_from_uid (Fixture *f,
       g_test_message ("[%d]: %ld", i, (long) gids[i]);
       g_assert_cmpint (gids[i], >=, 0);
     }
+
+#ifdef DBUS_ENABLE_EMBEDDED_TESTS
+  if (!_dbus_string_init (&homedir))
+    test_oom ();
+
+  ret = _dbus_homedir_from_uid (0, &homedir);
+  g_assert_true (ret);
+  g_test_message ("Home directory of uid 0: %s", _dbus_string_get_const_data (&homedir));
+#endif
 #else
   g_assert_cmpstr (error.name, ==, DBUS_ERROR_NOT_SUPPORTED);
   g_assert_false (ret);
@@ -94,6 +106,15 @@ test_groups_from_uid (Fixture *f,
   dbus_free (gids);
   dbus_error_free (&error);
 
+#ifdef DBUS_ENABLE_EMBEDDED_TESTS
+  if (!_dbus_string_set_length (&homedir, 0))
+    test_oom ();
+
+  ret = _dbus_homedir_from_uid (geteuid (), &homedir);
+  g_assert_true (ret);
+  g_test_message ("Home directory of current uid: %s", _dbus_string_get_const_data (&homedir));
+#endif
+
   errno = 0;
 
   if (getpwuid (not_a_uid) == NULL)
@@ -113,6 +134,15 @@ test_groups_from_uid (Fixture *f,
 
       dbus_free (gids);
       dbus_error_free (&error);
+
+#ifdef DBUS_ENABLE_EMBEDDED_TESTS
+      if (!_dbus_string_set_length (&homedir, 0))
+        test_oom ();
+
+      ret = _dbus_homedir_from_uid (not_a_uid, &homedir);
+      g_assert_false (ret);
+      g_test_message ("Getting home directory from non-uid failed as expected");
+#endif
     }
   else
     {
@@ -120,6 +150,10 @@ test_groups_from_uid (Fixture *f,
                           " exists on this system",
                           not_a_uid);
     }
+#endif
+
+#if defined(DBUS_UNIX) && defined(DBUS_ENABLE_EMBEDDED_TESTS)
+  _dbus_string_free (&homedir);
 #endif
 }
 
@@ -137,8 +171,8 @@ main (int argc,
 
   test_init (&argc, &argv);
 
-  g_test_add ("/userdb/groups_from_uid",
-              Fixture, NULL, setup, test_groups_from_uid, teardown);
+  g_test_add ("/userdb/info_from_uid",
+              Fixture, NULL, setup, test_info_from_uid, teardown);
 
   ret = g_test_run ();
   dbus_shutdown ();
