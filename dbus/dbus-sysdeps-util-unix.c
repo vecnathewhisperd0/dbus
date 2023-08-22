@@ -311,13 +311,14 @@ _dbus_write_pid_to_file_and_pipe (const DBusString *pidfile,
  * @returns #TRUE if username is valid
  */
 dbus_bool_t
-_dbus_verify_daemon_user (const char *user)
+_dbus_verify_daemon_user (const char *user,
+                          DBusError  *error)
 {
   DBusString u;
 
   _dbus_string_init_const (&u, user);
 
-  return _dbus_get_user_id_and_primary_group (&u, NULL, NULL, NULL);
+  return _dbus_get_user_id_and_primary_group (&u, NULL, NULL, error);
 }
 
 
