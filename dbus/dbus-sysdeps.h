@@ -312,7 +312,8 @@ dbus_bool_t _dbus_unix_user_is_process_owner    (dbus_uid_t         uid);
 dbus_bool_t _dbus_windows_user_is_process_owner (const char        *windows_sid);
 
 dbus_bool_t _dbus_append_keyring_directory_for_credentials (DBusString      *directory,
-                                                            DBusCredentials *credentials);
+                                                            DBusCredentials *credentials,
+                                                            DBusError       *error);
 
 dbus_bool_t _dbus_daemon_unpublish_session_bus_address (void);
 

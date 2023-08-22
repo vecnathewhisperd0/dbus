@@ -4720,12 +4720,13 @@ _dbus_flush_caches (void)
  *
  * @param directory string to append directory to
  * @param credentials credentials the directory should be for
- *
- * @returns #FALSE on no memory
+ * @param error a DBusError to store the error on failure
+ * @returns #FALSE on error
  */
 dbus_bool_t
 _dbus_append_keyring_directory_for_credentials (DBusString      *directory,
-                                                DBusCredentials *credentials)
+                                                DBusCredentials *credentials,
+                                                DBusError       *error)
 {
   DBusString homedir;
   DBusString dotdir;
@@ -4735,14 +4736,15 @@ _dbus_append_keyring_directory_for_credentials (DBusString      *directory,
   _dbus_assert (!_dbus_credentials_are_anonymous (credentials));
 
   if (!_dbus_string_init (&homedir))
-    return FALSE;
+    {
+      _DBUS_SET_OOM (error);
+      return FALSE;
+    }
 
   uid = _dbus_credentials_get_unix_uid (credentials);
   _dbus_assert (uid != DBUS_UID_UNSET);
 
-  /* TODO: In principle this can fail for reasons other than OOM, but we
-   * have no way to report those */
-  if (!_dbus_homedir_from_uid (uid, &homedir, NULL))
+  if (!_dbus_homedir_from_uid (uid, &homedir, error))
     goto failed;
 
 #ifdef DBUS_ENABLE_EMBEDDED_TESTS
@@ -4754,7 +4756,10 @@ _dbus_append_keyring_directory_for_credentials (DBusString      *directory,
       {
         _dbus_string_set_length (&homedir, 0);
         if (!_dbus_string_append (&homedir, override))
-          goto failed;
+          {
+            _DBUS_SET_OOM (error);
+            goto failed;
+          }
 
         _dbus_verbose ("Using fake homedir for testing: %s\n",
                        _dbus_string_get_const_data (&homedir));
@@ -4776,18 +4781,19 @@ _dbus_append_keyring_directory_for_credentials (DBusString      *directory,
 
   _dbus_string_init_const (&dotdir, ".dbus-keyrings");
   if (!_dbus_concat_dir_and_file (&homedir,
-                                  &dotdir))
-    goto failed;
-
-  if (!_dbus_string_copy (&homedir, 0,
-                          directory, _dbus_string_get_length (directory))) {
-    goto failed;
-  }
+                                  &dotdir) ||
+      !_dbus_string_copy (&homedir, 0,
+                          directory, _dbus_string_get_length (directory)))
+    {
+      _DBUS_SET_OOM (error);
+      goto failed;
+    }
 
   _dbus_string_free (&homedir);
   return TRUE;
 
  failed:
+  _DBUS_ASSERT_ERROR_IS_SET (error);
   _dbus_string_free (&homedir);
   return FALSE;
 }
