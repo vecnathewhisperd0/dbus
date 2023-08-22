@@ -70,7 +70,8 @@ test_info_from_uid (Fixture *f,
   if (!_dbus_string_init (&homedir))
     test_oom ();
 
-  ret = _dbus_homedir_from_uid (0, &homedir);
+  ret = _dbus_homedir_from_uid (0, &homedir, &error);
+  test_assert_no_error (&error);
   g_assert_true (ret);
   g_test_message ("Home directory of uid 0: %s", _dbus_string_get_const_data (&homedir));
 #endif
@@ -110,7 +111,8 @@ test_info_from_uid (Fixture *f,
   if (!_dbus_string_set_length (&homedir, 0))
     test_oom ();
 
-  ret = _dbus_homedir_from_uid (geteuid (), &homedir);
+  ret = _dbus_homedir_from_uid (geteuid (), &homedir, &error);
+  test_assert_no_error (&error);
   g_assert_true (ret);
   g_test_message ("Home directory of current uid: %s", _dbus_string_get_const_data (&homedir));
 #endif
@@ -139,9 +141,12 @@ test_info_from_uid (Fixture *f,
       if (!_dbus_string_set_length (&homedir, 0))
         test_oom ();
 
-      ret = _dbus_homedir_from_uid (not_a_uid, &homedir);
+      ret = _dbus_homedir_from_uid (not_a_uid, &homedir, &error);
+      g_assert_nonnull (error.message);
+      g_assert_nonnull (error.name);
       g_assert_false (ret);
-      g_test_message ("Getting home directory from non-uid failed as expected");
+      g_test_message ("Getting home directory from non-uid failed as expected: %s: %s",
+                      error.name, error.message);
 #endif
     }
   else
