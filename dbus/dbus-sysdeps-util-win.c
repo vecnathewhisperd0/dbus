@@ -688,8 +688,10 @@ _dbus_unix_user_is_at_console (dbus_uid_t         uid,
  */
 dbus_bool_t
 _dbus_parse_unix_group_from_config (const DBusString  *groupname,
-                                    dbus_gid_t        *gid_p)
+                                    dbus_gid_t        *gid_p,
+                                    DBusError         *error)
 {
+  set_unix_uid_unsupported (error);
   return FALSE;
 }
 

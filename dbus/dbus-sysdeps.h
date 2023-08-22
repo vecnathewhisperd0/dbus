@@ -300,7 +300,8 @@ dbus_bool_t _dbus_parse_unix_user_from_config   (const DBusString  *username,
                                                  dbus_uid_t        *uid_p,
                                                  DBusError         *error);
 dbus_bool_t _dbus_parse_unix_group_from_config  (const DBusString  *groupname,
-                                                 dbus_gid_t        *gid_p);
+                                                 dbus_gid_t        *gid_p,
+                                                 DBusError         *error);
 dbus_bool_t _dbus_unix_groups_from_uid          (dbus_uid_t         uid,
                                                  dbus_gid_t       **group_ids,
                                                  int               *n_group_ids,

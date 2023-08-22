@@ -175,17 +175,20 @@ test_group_id_from_name (Fixture *f,
   /* This is a group that exists on most Unix systems */
   _dbus_string_init_const (&name, "bin");
 
-  ret = _dbus_parse_unix_group_from_config (&name, &gid);
+  ret = _dbus_parse_unix_group_from_config (&name, &gid, &error);
 
 #ifdef DBUS_UNIX
   if (getgrnam (_dbus_string_get_const_data (&name)) != NULL)
     {
+      test_assert_no_error (&error);
       g_assert_true (ret);
       g_assert_cmpint (gid, >=, 0);
     }
 #else
+  g_assert_cmpstr (error.name, ==, DBUS_ERROR_NOT_SUPPORTED);
   g_assert_false (ret);
-  g_test_message ("Parsing Unix group on Windows failed as expected");
+  g_test_message ("Parsing Unix group on Windows failed as expected: %s: %s",
+                  error.name, error.message);
   g_assert_cmpint (gid, <, 0);
 #endif
 
@@ -206,10 +209,14 @@ test_group_id_from_name (Fixture *f,
   if (getpwnam (_dbus_string_get_const_data (&name)) == NULL)
     {
       gid = -1;
-      ret = _dbus_parse_unix_group_from_config (&name, &gid);
+      ret = _dbus_parse_unix_group_from_config (&name, &gid, &error);
+      g_assert_nonnull (error.name);
+      g_assert_nonnull (error.message);
       g_assert_false (ret);
       g_assert_cmpint (gid, <, 0);
-      g_test_message ("Parsing nonexistent group failed as expected");
+      g_test_message ("Parsing nonexistent group failed as expected: %s: %s",
+                      error.name, error.message);
+      dbus_error_free (&error);
 
       gid = -1;
       ret = _dbus_get_group_id (&name, &gid, &error);
