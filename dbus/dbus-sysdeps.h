@@ -493,7 +493,8 @@ dbus_bool_t _dbus_string_get_dirname  (const DBusString *filename,
 DBUS_PRIVATE_EXPORT
 dbus_bool_t _dbus_path_is_absolute    (const DBusString *filename);
 
-dbus_bool_t _dbus_get_standard_session_servicedirs (DBusList **dirs);
+dbus_bool_t _dbus_get_standard_session_servicedirs (DBusList **dirs,
+                                                    DBusError *error);
 dbus_bool_t _dbus_get_standard_system_servicedirs (DBusList **dirs);
 dbus_bool_t _dbus_set_up_transient_session_servicedirs (DBusList  **dirs,
                                                         DBusError  *error);
