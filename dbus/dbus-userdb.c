@@ -347,6 +347,7 @@ init_system_db (DBusError *error)
 
 /**
  * Locks global system user database.
+ * @returns #FALSE if no memory
  */
 dbus_bool_t
 _dbus_user_database_lock_system (void)
@@ -462,10 +463,13 @@ _dbus_homedir_from_current_process (const DBusString  **homedir)
  */
 dbus_bool_t
 _dbus_homedir_from_uid (dbus_uid_t         uid,
-                        DBusString        *homedir)
+                        DBusString        *homedir,
+                        DBusError         *error)
 {
   DBusUserDatabase *db;
   const DBusUserInfo *info;
+  dbus_bool_t locked = FALSE;
+  dbus_bool_t ret = FALSE;
 
   if (uid == _dbus_getuid () && uid == _dbus_geteuid ())
     {
@@ -474,35 +478,45 @@ _dbus_homedir_from_uid (dbus_uid_t         uid,
       from_environment = _dbus_getenv ("HOME");
 
       if (from_environment != NULL)
-        return _dbus_string_append (homedir, from_environment);
+        {
+          if (_dbus_string_append (homedir, from_environment))
+            ret = TRUE;
+          else
+            _DBUS_SET_OOM (error);
+
+          goto out;
+        }
     }
 
-  /* FIXME: this can't distinguish ENOMEM from other errors */
   if (!_dbus_user_database_lock_system ())
-    return FALSE;
+    {
+      _DBUS_SET_OOM (error);
+      goto out;
+    }
 
-  db = _dbus_user_database_get_system (NULL);
+  locked = TRUE;
+
+  db = _dbus_user_database_get_system (error);
   if (db == NULL)
-    {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
-    }
+    goto out;
 
-  if (!_dbus_user_database_get_uid (db, uid,
-                                    &info, NULL))
-    {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
-    }
+  if (!_dbus_user_database_get_uid (db, uid, &info, error))
+    goto out;
 
   if (!_dbus_string_append (homedir, info->homedir))
     {
-      _dbus_user_database_unlock_system ();
-      return FALSE;
+      _DBUS_SET_OOM (error);
+      goto out;
     }
-  
-  _dbus_user_database_unlock_system ();
-  return TRUE;
+
+  ret = TRUE;
+
+out:
+  if (locked)
+    _dbus_user_database_unlock_system ();
+
+  _DBUS_ASSERT_ERROR_XOR_BOOL (error, ret);
+  return ret;
 }
 
 /**

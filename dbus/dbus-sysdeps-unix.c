@@ -4740,7 +4740,9 @@ _dbus_append_keyring_directory_for_credentials (DBusString      *directory,
   uid = _dbus_credentials_get_unix_uid (credentials);
   _dbus_assert (uid != DBUS_UID_UNSET);
 
-  if (!_dbus_homedir_from_uid (uid, &homedir))
+  /* TODO: In principle this can fail for reasons other than OOM, but we
+   * have no way to report those */
+  if (!_dbus_homedir_from_uid (uid, &homedir, NULL))
     goto failed;
 
 #ifdef DBUS_ENABLE_EMBEDDED_TESTS
