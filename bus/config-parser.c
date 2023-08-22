@@ -1140,7 +1140,8 @@ start_busconfig_child (BusConfigParser   *parser,
           _dbus_string_init_const (&group_name, group);
 
           if (_dbus_parse_unix_group_from_config (&group_name,
-                                                  &e->d.policy.gid_uid_or_at_console))
+                                                  &e->d.policy.gid_uid_or_at_console,
+                                                  NULL))
             e->d.policy.type = POLICY_GROUP;
           else
             _dbus_warn ("Unknown group \"%s\" in message bus configuration file",
@@ -1793,7 +1794,7 @@ append_rule_from_element (BusConfigParser   *parser,
           
           _dbus_string_init_const (&groupname, group);
           
-          if (_dbus_parse_unix_group_from_config (&groupname, &gid))
+          if (_dbus_parse_unix_group_from_config (&groupname, &gid, NULL))
             {
               rule = bus_policy_rule_new (BUS_POLICY_RULE_GROUP, allow); 
               if (rule == NULL)

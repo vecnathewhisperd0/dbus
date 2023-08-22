@@ -930,9 +930,10 @@ _dbus_parse_unix_user_from_config (const DBusString  *username,
  */
 dbus_bool_t
 _dbus_parse_unix_group_from_config (const DBusString  *groupname,
-                                    dbus_gid_t        *gid_p)
+                                    dbus_gid_t        *gid_p,
+                                    DBusError         *error)
 {
-  return _dbus_get_group_id (groupname, gid_p, NULL);
+  return _dbus_get_group_id (groupname, gid_p, error);
 }
 
 /**
