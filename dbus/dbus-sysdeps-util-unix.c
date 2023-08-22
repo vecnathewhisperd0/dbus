@@ -1382,7 +1382,8 @@ _dbus_get_standard_session_servicedirs (DBusList **dirs)
       const DBusString *homedir;
       DBusString local_share;
 
-      if (!_dbus_homedir_from_current_process (&homedir))
+      /* TODO: This could fail for a reason that is not OOM */
+      if (!_dbus_homedir_from_current_process (&homedir, NULL))
         goto oom;
 
       if (!_dbus_string_append (&servicedir_path, _dbus_string_get_const_data (homedir)))

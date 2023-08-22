@@ -446,12 +446,16 @@ _dbus_username_from_current_process (const DBusString **username,
  * @returns #FALSE if no memory
  */
 dbus_bool_t
-_dbus_homedir_from_current_process (const DBusString  **homedir)
+_dbus_homedir_from_current_process (const DBusString  **homedir,
+                                    DBusError          *error)
 {
   if (!_dbus_user_database_lock_system ())
-    return FALSE;
+    {
+      _DBUS_SET_OOM (error);
+      return FALSE;
+    }
 
-  if (!init_system_db (NULL))
+  if (!init_system_db (error))
     {
       _dbus_user_database_unlock_system ();
       return FALSE;
