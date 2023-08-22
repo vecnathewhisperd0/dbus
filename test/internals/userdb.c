@@ -13,6 +13,7 @@
 
 #ifdef DBUS_UNIX
 #include <errno.h>
+#include <grp.h>
 #include <pwd.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -163,6 +164,65 @@ test_info_from_uid (Fixture *f,
 }
 
 static void
+test_group_id_from_name (Fixture *f,
+                         gconstpointer context G_GNUC_UNUSED)
+{
+  dbus_bool_t ret;
+  dbus_gid_t gid = -1;
+  DBusString name;
+
+  /* This is a group that exists on most Unix systems */
+  _dbus_string_init_const (&name, "bin");
+
+  ret = _dbus_parse_unix_group_from_config (&name, &gid);
+
+#ifdef DBUS_UNIX
+  if (getgrnam (_dbus_string_get_const_data (&name)) != NULL)
+    {
+      g_assert_true (ret);
+      g_assert_cmpint (gid, >=, 0);
+    }
+#else
+  g_assert_false (ret);
+  g_test_message ("Parsing Unix group on Windows failed as expected");
+  g_assert_cmpint (gid, <, 0);
+#endif
+
+#ifdef DBUS_UNIX
+  /* This function only exists on Unix */
+  ret = _dbus_get_group_id (&name, &gid);
+
+  if (getgrnam (_dbus_string_get_const_data (&name)) != NULL)
+    {
+      g_assert_true (ret);
+      g_assert_cmpint (gid, >=, 0);
+    }
+
+  /* arbitrarily chosen, probably isn't a valid group name */
+  _dbus_string_init_const (&name, "not-a-group");
+
+  if (getpwnam (_dbus_string_get_const_data (&name)) == NULL)
+    {
+      gid = -1;
+      ret = _dbus_parse_unix_group_from_config (&name, &gid);
+      g_assert_false (ret);
+      g_assert_cmpint (gid, <, 0);
+      g_test_message ("Parsing nonexistent group failed as expected");
+
+      gid = -1;
+      ret = _dbus_get_group_id (&name, &gid);
+      g_assert_false (ret);
+      g_test_message ("Getting gid of nonexistent group failed as expected");
+      g_assert_cmpint (gid, <, 0);
+    }
+  else
+    {
+      g_test_skip ("our improbably-named group exists?!");
+    }
+#endif
+}
+
+static void
 test_user_id_from_name (Fixture *f,
                         gconstpointer context G_GNUC_UNUSED)
 {
@@ -262,6 +322,8 @@ main (int argc,
 
   g_test_add ("/userdb/info_from_uid",
               Fixture, NULL, setup, test_info_from_uid, teardown);
+  g_test_add ("/userdb/group_id_from_name",
+              Fixture, NULL, setup, test_group_id_from_name, teardown);
   g_test_add ("/userdb/user_id_from_name",
               Fixture, NULL, setup, test_user_id_from_name, teardown);
 
