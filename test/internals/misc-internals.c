@@ -660,11 +660,7 @@ _dbus_misc_test (const char *test_data_dir _DBUS_GNUC_UNUSED)
   if (!_dbus_string_init (&str))
     _dbus_test_fatal ("no memory");
 
-  if (!(_dbus_string_append_int (&str, major) &&
-        _dbus_string_append_byte (&str, '.') &&
-        _dbus_string_append_int (&str, minor) &&
-        _dbus_string_append_byte (&str, '.') &&
-        _dbus_string_append_int (&str, micro)))
+  if (!_dbus_string_append_printf (&str, "%d.%d.%d", major, minor, micro))
     _dbus_test_fatal ("no memory");
 
   _dbus_test_check (_dbus_string_equal_c_str (&str, DBUS_VERSION_STRING));

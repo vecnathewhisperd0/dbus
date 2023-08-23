@@ -203,8 +203,7 @@ _dbus_write_pid_to_file_and_pipe (const DBusString *pidfile,
           return FALSE;
         }
 
-      if (!_dbus_string_append_int (&pid, pid_to_write) ||
-          !_dbus_string_append (&pid, "\n"))
+      if (!_dbus_string_append_printf (&pid, DBUS_PID_FORMAT "\n", pid_to_write))
         {
           _dbus_string_free (&pid);
           _DBUS_SET_OOM (error);
