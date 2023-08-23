@@ -393,44 +393,6 @@ _dbus_string_append_int (DBusString *str,
 }
 
 /**
- * Appends an unsigned integer to a DBusString.
- * 
- * @param str the string
- * @param value the integer value
- * @returns #FALSE if not enough memory or other failure.
- */
-dbus_bool_t
-_dbus_string_append_uint (DBusString    *str,
-                          unsigned long  value)
-{
-  /* this is wrong, but definitely on the high side. */
-#define MAX_ULONG_LEN (MAX_LONG_LEN * 2)
-  int orig_len;
-  int i;
-  char *buf;
-  
-  orig_len = _dbus_string_get_length (str);
-
-  if (!_dbus_string_lengthen (str, MAX_ULONG_LEN))
-    return FALSE;
-
-  buf = _dbus_string_get_data_len (str, orig_len, MAX_ULONG_LEN);
-
-  snprintf (buf, MAX_ULONG_LEN, "%lu", value);
-
-  i = 0;
-  while (*buf)
-    {
-      ++buf;
-      ++i;
-    }
-  
-  _dbus_string_shorten (str, MAX_ULONG_LEN - i);
-  
-  return TRUE;
-}
-
-/**
  * Parses an integer contained in a DBusString. Either return parameter
  * may be #NULL if you aren't interested in it. The integer is parsed
  * and stored in value_return. Return parameters are not initialized
