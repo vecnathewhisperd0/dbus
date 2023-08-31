@@ -112,6 +112,10 @@ data_to_install = [
     'valid-config-files/standard-session-dirs.conf',
     'valid-messages/byteswap-fd-index.message-raw',
     'valid-messages/byteswap-fd-index.message-raw.hex',
+    'valid-messages/everything-be.message-raw',
+    'valid-messages/everything-be.message-raw.hex',
+    'valid-messages/everything.message-raw',
+    'valid-messages/everything.message-raw.hex',
     'valid-messages/minimal.message-raw',
     'valid-messages/minimal.message-raw.hex',
 ]

@@ -143,6 +143,22 @@ backported_g_steal_pointer (gpointer pointer_to_pointer)
 #define g_assert_nonnull(a) g_assert ((a) != NULL)
 #endif
 
+#ifndef g_assert_cmpmem
+#define g_assert_cmpmem(m1, n1, m2, n2) \
+  G_STMT_START \
+    { \
+      size_t _n1 = (n1); \
+      size_t _n2 = (n2); \
+      size_t _len = MIN (_n1, _n2); \
+      \
+      g_assert_cmpuint (_n1, ==, _n2); \
+      \
+      if (_len != 0) \
+        g_assert_cmpint (memcmp ((m1), (m2), _len), ==, 0); \
+    } \
+  G_STMT_END
+#endif
+
 gboolean test_check_tcp_works (void);
 gboolean test_check_af_unix_works (void);
 

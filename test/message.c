@@ -259,6 +259,8 @@ iterate_fully (DBusMessageIter *iter,
     g_assert_cmpuint (n_elements, ==, i);
 }
 
+#define FIXED_HEADER_LENGTH 16
+
 /* Return TRUE if the right thing happens, but the right thing might include
  * OOM. */
 static dbus_bool_t
@@ -274,12 +276,17 @@ test_valid_message_blobs (void        *message_name,
   DBusError e = DBUS_ERROR_INIT;
   dbus_bool_t ok = TRUE;
   gchar *filename = NULL;
+  char *marshalled_data = NULL;
+  int marshalled_len;
+  char *after_iter_data = NULL;
+  int after_iter_len;
 
   filename = g_strdup_printf ("%s.message-raw", (const char *) message_name);
   path = g_test_build_filename (G_TEST_DIST, "data", "valid-messages",
                                 filename, NULL);
   g_file_get_contents (path, &contents, &len, &error);
   g_assert_no_error (error);
+  g_assert_cmpuint (len, >=, FIXED_HEADER_LENGTH);
   g_assert_cmpuint (len, <, (gsize) INT_MAX);
 
   m = dbus_message_demarshal (contents, (int) len, &e);
@@ -307,7 +314,34 @@ test_valid_message_blobs (void        *message_name,
   else
     g_assert_cmpint (dbus_message_iter_get_arg_type (&iter), ==, DBUS_TYPE_INVALID);
 
+  if (!dbus_message_marshal (m, &marshalled_data, &marshalled_len))
+    {
+      g_assert_false (have_memory);
+      goto out;
+    }
+
+  g_assert_cmpint (marshalled_len, >=, FIXED_HEADER_LENGTH);
+
+  /* Byte 0 is the endianness. In practice the message will not yet have
+   * been byte-swapped, but we don't guarantee that as API */
+  if (marshalled_data[0] == contents[0])
+    g_assert_cmpmem (marshalled_data, (gsize) marshalled_len, contents, len);
+
   iterate_fully (&iter, -1);
+
+  /* Iterating over the message will have byte-swapped it to our native
+   * endianness */
+  if (!dbus_message_marshal (m, &after_iter_data, &after_iter_len))
+    {
+      g_assert_false (have_memory);
+      goto out;
+    }
+
+  /* Even if it was byteswapped, that will not have changed the length */
+  g_assert_cmpint (after_iter_len, ==, marshalled_len);
+
+  if (after_iter_data[0] == contents[0])
+    g_assert_cmpmem (after_iter_data, (gsize) after_iter_len, contents, len);
 
 out:
   dbus_clear_message (&m);
@@ -315,6 +349,8 @@ out:
   g_free (path);
   g_free (contents);
   g_free (filename);
+  dbus_free (marshalled_data);
+  dbus_free (after_iter_data);
   return ok;
 }
 
@@ -507,6 +543,8 @@ add_oom_test (const gchar *name,
 static const char *valid_messages[] =
 {
   "byteswap-fd-index",
+  "everything",
+  "everything-be",
   "minimal",
 };
 
