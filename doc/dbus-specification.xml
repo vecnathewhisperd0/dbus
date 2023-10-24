@@ -5541,8 +5541,9 @@
     <sect2 id="message-bus-types">
       <title>Well-known Message Bus Instances</title>
       <para>
-        Two standard message bus instances are defined here, along with how
-        to locate them and where their service files live.
+        This specification defines two standard instances of the message bus as
+        well as mechanisms to locate these buses and their respective service
+        files.
       </para>
       <sect3 id="message-bus-types-login">
         <title>Login session message bus</title>
