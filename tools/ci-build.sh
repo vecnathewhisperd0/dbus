@@ -228,7 +228,7 @@ make="${make} -j${ci_parallel} V=1 VERBOSE=1"
 export UBSAN_OPTIONS=print_stacktrace=1:print_summary=1:halt_on_error=1
 
 case "$ci_buildsys" in
-    (cmake|cmake-dist)
+    (cmake)
         cmdwrapper=
         cmake=cmake
         case "$ci_host" in
@@ -279,7 +279,7 @@ case "$ci_buildsys" in
         ( cd DESTDIR && find . -ls)
         ;;
 
-    (meson|meson-dist)
+    (meson)
         # The test coverage for OOM-safety is too verbose to be useful on
         # travis-ci, and too slow when running under wine.
         export DBUS_TEST_MALLOC_FAILURES=0

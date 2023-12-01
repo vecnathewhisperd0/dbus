@@ -173,21 +173,21 @@ debian cmake:
     - .debian-build
   when: manual
   variables:
-    ci_buildsys: "cmake-dist"
+    ci_buildsys: "cmake"
 
 debian meson:
   extends:
     - .meson-common
     - .debian-build
   variables:
-    ci_buildsys: "meson-dist"
+    ci_buildsys: "meson"
 
 debian meson clang debug:
   extends:
     - .meson-common
     - .debian-build
   variables:
-    ci_buildsys: "meson-dist"
+    ci_buildsys: "meson"
     ci_compiler: "clang"
     ci_variant: "debug"
   script:
