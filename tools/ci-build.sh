@@ -29,6 +29,12 @@ set -x
 
 NULL=
 
+if [ "$(uname -s || true)" = Linux ]; then
+    export LANG=C.UTF-8
+    export LANGUAGE=C.UTF-8
+    export LC_ALL=C.UTF-8
+fi
+
 ##
 ## initialize support to run cross compiled executables
 ##
