@@ -218,9 +218,9 @@ case "$ci_distro" in
                 version=$(. /etc/os-release; echo ${VERSION_ID} | sed 's, ,_,g')
                 repo="openSUSE_Leap_$version"
                 # Use a newer CMake (3.21) version for JUnit XML support on openSUSE Leap.
-                if ! zypper lr cmake > /dev/null; then
-                    $zypper ar --refresh --no-gpgcheck --name cmake \
-                        "https://download.opensuse.org/repositories/devel:tools:building/$version/devel:tools:building.repo"
+                if ! zypper lr windows_mingw > /dev/null; then
+                    $zypper ar --refresh --no-gpgcheck \
+                        "https://download.opensuse.org/repositories/windows:/mingw/$repo/windows:mingw.repo"
                 fi
                 ;;
             (opensuse-tumbleweed)
@@ -247,15 +247,10 @@ case "$ci_distro" in
                 else
                     bits="32"
                 fi
-                (
-                    p=$(zypper lr | grep "windows_mingw_win${bits}" || true)
-                    if [ -z "$p" ]; then
-                        $zypper ar --refresh --no-gpgcheck \
-                            "https://download.opensuse.org/repositories/windows:/mingw/$repo/windows:mingw.repo"
-                        $zypper ar --refresh --no-gpgcheck \
-                            "https://download.opensuse.org/repositories/windows:/mingw:/win${bits}/$repo/windows:mingw:win${bits}.repo"
-                    fi
-                )
+                if ! zypper lr "windows_mingw_win${bits}" > /dev/null; then
+                    $zypper ar --refresh --no-gpgcheck \
+                        "https://download.opensuse.org/repositories/windows:/mingw:/win${bits}/$repo/windows:mingw:win${bits}.repo"
+                fi
                 packages=(
                     "${packages[@]}"
                     mingw${bits}-cross-cmake
