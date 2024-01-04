@@ -131,7 +131,7 @@ _set_watched_dirs_internal (BusContext *context,
   /* Look for directories in both the old and new sets, if
    * we find one, move its data into the new set.
    */
-  for (i = 0; new_dirs[i]; i++)
+  for (i = 0; i < MAX_DIRS_TO_WATCH && new_dirs[i]; i++)
     {
       for (j = 0; j < num_wds; j++)
         {
@@ -160,7 +160,7 @@ _set_watched_dirs_internal (BusContext *context,
         }
     }
 
-  for (i = 0; new_dirs[i]; i++)
+  for (i = 0; i < MAX_DIRS_TO_WATCH && new_dirs[i]; i++)
     {
       if (new_wds[i] == -1)
         {
