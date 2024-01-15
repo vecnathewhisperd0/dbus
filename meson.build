@@ -705,7 +705,7 @@ check_headers = [
 
 foreach header : check_headers
     macro = 'HAVE_' + header.underscorify().to_upper()
-    config.set(macro, cc.has_header(header, args: compile_args_c) ? 1 : false)
+    config.set(macro, cc.check_header(header, args: compile_args_c) ? 1 : false)
 endforeach
 
 execinfo = cc.find_library('execinfo', required: false)
