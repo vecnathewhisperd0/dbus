@@ -197,6 +197,11 @@ add_docbook(dbus-tutorial SOURCE dbus-tutorial.xml FORMATS html)
 #
 # handle html index file
 #
+if(DBUS_ENABLE_DOXYGEN_DOCS)
+    set(DBUS_APIDOC_LINK "<a href=\"api/html/index.html\">libdbus API Documentation</a>")
+else()
+    set(DBUS_APIDOC_LINK "")
+endif()
 configure_file(index.html.in ${CMAKE_CURRENT_BINARY_DIR}/index.html)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/index.html DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/dbus)
 
