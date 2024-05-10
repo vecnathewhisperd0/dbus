@@ -857,7 +857,7 @@ it is typically not a security boundary.
 Debugging services running on D-Bus can be tricky, especially if they are
 launched via service activation and hence in an environment out of your control.
 
-Three main tools are available: D-Bus Monitor, Bustle and D-Feet.
+Three main tools are available: D-Bus Monitor, Bustle and d-spy.
 
 === D-Bus Monitor
     [id="dbus-monitor"]
@@ -878,15 +878,15 @@ system bus without modifying its security policy.
 === Bustle
     [id="bustle"]
 
-$link[>>https://gitlab.freedesktop.org/bustle/bustle](Bustle) is a graphical version of
+$link[>>https://gitlab.gnome.org/World/bustle](Bustle) is a graphical version of
 $cmd(dbus-monitor), with a UI focused on profiling D-Bus performance by plotting
 messages on a timeline. It is ideal for finding bottlenecks in IPC performance
 between a service and client.
 
-=== D-Feet
-    [id="d-feet"]
+=== d-spy
+    [id="d-spy"]
 
-$link[>>https://wiki.gnome.org/Apps/DFeet](D-Feet) is an introspection tool for
+$link[>>https://gitlab.gnome.org/GNOME/d-spy](d-spy) is an introspection tool for
 D-Bus, which displays all peers on the bus graphically, with their objects,
 interfaces, methods, signals and properties listed for examination. It is useful
 for debugging all kinds of issues related to presence of services on the bus
