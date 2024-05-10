@@ -878,7 +878,7 @@ system bus without modifying its security policy.
 === Bustle
     [id="bustle"]
 
-$link[>>https://gitlab.freedesktop.org/bustle/bustle](Bustle) is a graphical version of
+$link[>>https://gitlab.gnome.org/World/bustle](Bustle) is a graphical version of
 $cmd(dbus-monitor), with a UI focused on profiling D-Bus performance by plotting
 messages on a timeline. It is ideal for finding bottlenecks in IPC performance
 between a service and client.
