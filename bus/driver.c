@@ -416,16 +416,8 @@ create_unique_client_name (BusRegistry *registry,
 
       /* appname:MAJOR-MINOR */
 
-      if (!_dbus_string_append (str, ":"))
-        return FALSE;
-
-      if (!_dbus_string_append_int (str, next_major_number))
-        return FALSE;
-
-      if (!_dbus_string_append (str, "."))
-        return FALSE;
-
-      if (!_dbus_string_append_int (str, next_minor_number))
+      if (!_dbus_string_append_printf (str, ":%d.%d",
+                                       next_major_number, next_minor_number))
         return FALSE;
 
       next_minor_number += 1;
