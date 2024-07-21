@@ -388,7 +388,6 @@ else
     have_gio_unix = false
 endif
 use_glib = glib.found() and gio.found()
-config.set('DBUS_WITH_GLIB', use_glib)
 
 if message_bus
     expat = dependency('expat')
@@ -458,7 +457,6 @@ else
         error('kqueue support requested but not found')
     endif
 endif
-config.set('DBUS_BUS_ENABLE_KQUEUE', use_kqueue)
 
 if get_option('launchd').disabled()
     use_launchd = false
