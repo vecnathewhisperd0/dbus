@@ -467,7 +467,7 @@ else
         error('launchd support requested but not found')
     endif
 endif
-config.set('DBUS_BUS_ENABLE_LAUNCHD', use_launchd)
+config.set('DBUS_ENABLE_LAUNCHD', use_launchd)
 
 if use_launchd
     launchd_agent_dir = get_option('launchd_agent_dir')
