@@ -1478,6 +1478,34 @@ _dbus_get_standard_system_servicedirs (DBusList **dirs)
                                        dirs);
 }
 
+
+/**
+ * Returns the local admin directories for a system bus to look for service
+ * activation files
+ *
+ * On UNIX this should be the /etc/ and /run/ directories.
+ *
+ * On Windows there is no system bus and this function can return nothing.
+ *
+ * @param dirs the directory list we are returning
+ * @returns #FALSE on OOM
+ */
+
+dbus_bool_t
+_dbus_get_local_system_servicedirs (DBusList **dirs)
+{
+  static const char standard_search_path[] =
+    "/etc:"
+    "/run";
+  DBusString servicedir_path;
+
+  _dbus_string_init_const (&servicedir_path, standard_search_path);
+
+  return _dbus_split_paths_and_append (&servicedir_path,
+                                       DBUS_UNIX_STANDARD_SYSTEM_SERVICEDIR,
+                                       dirs);
+}
+
 /**
  * Get the absolute path of the system.conf file
  * (there is no system bus on Windows so this can just
