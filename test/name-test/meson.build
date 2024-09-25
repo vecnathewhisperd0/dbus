@@ -98,7 +98,7 @@ if embedded_tests
     if platform_unix
         test('run-test',
             find_program('run-test.sh'),
-            depends: autolaunch,
+            depends: [dbus_launch, autolaunch],
             env: test_env,
             protocol: test_protocol,
             suite: 'name-test',
