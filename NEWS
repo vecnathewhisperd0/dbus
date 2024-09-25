@@ -41,6 +41,11 @@ Bug fixes:
 • In the test suite, use a more widely-implemented group name 'tty'
   in preference to 'bin' (dbus#514, Alyssa Ross)
 
+• Ensure that `dbus-test-tool spam` options cannot leave the payload
+  length uninitialized (dbus!469, Simon McVittie)
+
+• Fix compiler warnings with gcc 14 (dbus!469, Simon McVittie)
+
 Documentation:
 
 • Clarify ownership transfer of pending call in
