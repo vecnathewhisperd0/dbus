@@ -7900,6 +7900,47 @@
 
     </sect2>
 
+    <sect2 id="message-bus-verbose-interface">
+      <title>Verbose Interface: <literal>org.freedesktop.DBus.Verbose</literal></title>
+      <para>
+        The special message bus name <literal>org.freedesktop.DBus</literal>
+        may optionally implement the
+        <literal>org.freedesktop.DBus.Verbose</literal> interface on
+        the object path <literal>/org/freedesktop/DBus</literal>.
+        In the reference implementation, this interface is an optional
+        feature, which can be enabled or disabled at compile-time.
+        On the well-known system bus or other buses that serve more than
+        one user, access to this interface should normally be restricted to
+        administrative users, but can be opened up to developers via
+        configuration if required.
+      </para>
+
+      <sect3 id="bus-messages-enable-verbose">
+        <title>Method: <literal>org.freedesktop.DBus.Verbose.EnableVerbose</literal></title>
+        <para>
+          As a method:
+          <programlisting>
+            EnableVerbose ()
+          </programlisting>
+          Start producing verbose debugging messages in an
+          implementation-specific way.
+          For example, these messages might go to standard error or to a
+          system event log.
+       </para>
+      </sect3>
+
+      <sect3 id="bus-messages-disable-verbose">
+        <title>Method: <literal>org.freedesktop.DBus.Verbose.DisableVerbose</literal></title>
+        <para>
+          As a method:
+          <programlisting>
+            DisableVerbose ()
+          </programlisting>
+          Stop producing verbose debugging messages.
+       </para>
+      </sect3>
+
+    </sect2>
   </sect1>
 <!--
   <appendix id="implementation-notes">
