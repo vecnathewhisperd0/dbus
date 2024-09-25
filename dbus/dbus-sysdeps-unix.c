@@ -5222,7 +5222,7 @@ _dbus_logv (DBusSystemLogSeverity  severity,
 #ifdef HAVE_SYSLOG_H
   if (log_flags & DBUS_LOG_FLAGS_SYSTEM_LOG)
     {
-      int flags;
+      int flags = LOG_DAEMON | LOG_WARNING;
       switch (severity)
         {
           case DBUS_SYSTEM_LOG_INFO:
