@@ -13,6 +13,59 @@ Enhancements:
   if there is OS-level support for 64-bit time_t, either opt-in
   (as on 32-bit glibc systems) or by default. (dbus!444, Alexander Kanavin)
 
+• When building with CMake, build more HTML documentation
+  (dbus#504, Ralf Habacker)
+
+Bug fixes:
+
+• Don't crash if configured to watch more than 128 directories with
+  inotify (dbus#481, hongjinghao)
+
+• Never add (uid_t) -1, (gid_t) -1 or (pid_t) 0 to credentials
+  (dbus!464, Alyssa Ross)
+
+• Fix a regression since 1.15.0 for "autolaunch:" on Windows
+  (dbus#503, Thomas Sondergaard)
+
+• When building with Meson, don't use stdatomic.h if it exists but is
+  non-functional, for example under Visual Studio 2022
+  (dbus#494, Thomas Sondergaard)
+
+• When building with Meson, add test dependencies so that 'meson test'
+  does not always need to be preceded by 'meson compile'
+  (dbus!465, Alyssa Ross)
+
+• When building with Meson, really enable launchd if appropriate
+  (dbus!463, Alyssa Ross)
+
+• In the test suite, use a more widely-implemented group name 'tty'
+  in preference to 'bin' (dbus#514, Alyssa Ross)
+
+Documentation:
+
+• Clarify ownership transfer of pending call in
+  dbus_connection_send_with_reply() (dbus!455, Wiebe Cazemier)
+
+• Explicitly document dbus-send exit status (dbus#452, Philip Withnall)
+
+• Refer to d-spy in preference to unmaintaned D-Feet
+  (dbus!460, Ludovico de Nittis)
+
+• Update URL to Bustle tool (dbus!460, Ludovico de Nittis)
+
+Internal changes:
+
+• Replace _dbus_string_append_int(), _dbus_string_append_uint() with
+  calls to _dbus_string_append_printf()
+  (dbus!445, Simon McVittie)
+
+• Clean up unused macros in CMake build
+  (dbus!463, Alyssa Ross)
+
+• Internal CI changes
+  (dbus#487, dbus#488, dbus#489, dbus#509;
+  Ralf Habacker, Simon McVittie)
+
 dbus 1.15.8 (2023-08-21)
 ========================
 
