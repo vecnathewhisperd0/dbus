@@ -7444,7 +7444,7 @@
                 <para>
                   This message bus filters messages via the
                   <ulink url="https://selinuxproject.org/">SELinux</ulink>
-                  security framework. Similar to <literal>apparmor</literal>,
+                  security framework. Similar to <literal>AppArmor</literal>,
                   this feature should only be advertised if SELinux mediation
                   is enabled and active at runtime (if SELinux is placed in
                   permissive mode, that is still considered to be active).
