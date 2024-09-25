@@ -933,7 +933,7 @@ _dbus_combine_tcp_errors (DBusList **sources,
         name = DBUS_ERROR_FAILED;
 
       dbus_set_error (dest, name, "%s to \"%s\":%s (%s)",
-                      summary, host ? host : "*", port,
+                      summary, host ? host : "*", port ? port : "0",
                       _dbus_string_get_const_data (&message));
     }
 
