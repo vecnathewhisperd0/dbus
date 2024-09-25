@@ -1652,7 +1652,7 @@ _dbus_listen_tcp_socket (const char     *host,
       dbus_set_error (error,
                       _dbus_error_from_gai (res, errno),
                       "Failed to lookup host/port: \"%s:%s\": %s (%d)",
-                      host ? host : "*", port, gai_strerror(res), res);
+                      host ? host : "*", port ? port : "0", gai_strerror(res), res);
       goto failed;
     }
 
@@ -1673,7 +1673,7 @@ _dbus_listen_tcp_socket (const char     *host,
       if (setsockopt (fd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr))==-1)
         {
           _dbus_warn ("Failed to set socket option \"%s:%s\": %s",
-                      host ? host : "*", port, _dbus_strerror (errno));
+                      host ? host : "*", port ? port : "0", _dbus_strerror (errno));
         }
 
       /* Nagle's algorithm imposes a huge delay on the initial messages
@@ -1682,7 +1682,7 @@ _dbus_listen_tcp_socket (const char     *host,
       if (setsockopt (fd, IPPROTO_TCP, TCP_NODELAY, &tcp_nodelay_on, sizeof (tcp_nodelay_on)) == -1)
         {
           _dbus_warn ("Failed to set TCP_NODELAY socket option \"%s:%s\": %s",
-                      host ? host : "*", port, _dbus_strerror (errno));
+                      host ? host : "*", port ? port : "0", _dbus_strerror (errno));
         }
 
       if (bind (fd, (struct sockaddr*) tmp->ai_addr, tmp->ai_addrlen) < 0)
@@ -1783,7 +1783,7 @@ _dbus_listen_tcp_socket (const char     *host,
                   saved_errno = errno;
                   dbus_set_error (error, _dbus_error_from_errno (saved_errno),
                                   "Failed to retrieve socket name for \"%s:%s\": %s",
-                                  host ? host : "*", port, _dbus_strerror (saved_errno));
+                                  host ? host : "*", port ? port : "0", _dbus_strerror (saved_errno));
                   goto failed;
                 }
 
@@ -1794,7 +1794,7 @@ _dbus_listen_tcp_socket (const char     *host,
                   saved_errno = errno;
                   dbus_set_error (error, _dbus_error_from_gai (res, saved_errno),
                                   "Failed to resolve port \"%s:%s\": %s (%d)",
-                                  host ? host : "*", port, gai_strerror(res), res);
+                                  host ? host : "*", port ? port : "0", gai_strerror(res), res);
                   goto failed;
                 }
 
@@ -5222,7 +5222,7 @@ _dbus_logv (DBusSystemLogSeverity  severity,
 #ifdef HAVE_SYSLOG_H
   if (log_flags & DBUS_LOG_FLAGS_SYSTEM_LOG)
     {
-      int flags;
+      int flags = LOG_DAEMON | LOG_WARNING;
       switch (severity)
         {
           case DBUS_SYSTEM_LOG_INFO:
