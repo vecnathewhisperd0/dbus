@@ -7041,8 +7041,8 @@
         <para>
           This method was added in D-Bus 1.7 to reduce the round-trips
           required to list a process's credentials. In older versions, calling
-          this method will fail: applications should recover by using the
-          separate methods such as
+          this method will fail: applications wishing to support obsolete
+          message bus versions can recover by using the separate methods such as
           <link linkend="bus-messages-get-connection-unix-user">GetConnectionUnixUser</link>
           instead.
         </para>
