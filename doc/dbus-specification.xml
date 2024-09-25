@@ -5883,8 +5883,11 @@
 
       <para>
         In addition to the method calls listed below, the message bus
-        should implement the standard Introspectable, Properties and Peer
-        interfaces (see <xref linkend="standard-interfaces"/>).
+        should implement the standard
+        <link linkend="standard-interfaces-introspectable">Introspectable</link>,
+        <link linkend="standard-interfaces-peer">Peer</link> and
+        <link linkend="standard-interfaces-properties">Properties</link>
+        interfaces.
         Support for the Properties and Peer interfaces was added in version
         1.11.x of the reference implementation of the message bus.
       </para>
