@@ -21,7 +21,7 @@
 
 project('dbus',
     'c',
-    version: '1.15.9',
+    version: '1.15.10',
     meson_version: '>=0.56',
 )
 
@@ -70,7 +70,7 @@ config.set_quoted('DBUS_DAEMON_NAME', 'dbus-daemon')
 lt_current = 41
 ## increment any time the source changes;
 ## set to 0 if you increment CURRENT
-lt_revision = 0
+lt_revision = 1
 ## increment if any interfaces have been added;
 ## set to 0 if any interfaces have been changed or removed.
 ## removal has precedence over adding, so set to 0 if both happened.
