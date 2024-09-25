@@ -336,6 +336,10 @@ can_upload_docs = doxygen.found() and xsltproc.found() and ducktype.found()
 qhelpgen = find_program('qhelpgenerator', 'qhelpgenerator-qt5', required: get_option('qt_help'))
 qt_help_generate = doxygen.found() and qhelpgen.found()
 
+data_config.set(
+    'DBUS_APIDOC_LINK',
+    doxygen.found() ? '<a href="api/html/index.html">libdbus API Documentation</a>' : '',
+)
 data_config.set('DBUS_GENERATE_MAN', platform_windows ? 'NO' : 'YES')
 data_config.set('DOXYGEN_QCH_FILE', meson.current_build_dir()
     / 'doc' / 'api' / 'qch' / 'dbus-@0@.qch'.format(version))
