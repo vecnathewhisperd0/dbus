@@ -52,7 +52,7 @@ if(DBUS_ENABLE_DOXYGEN_DOCS)
         DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/doxygen.stamp
     )
     add_dependencies(doc apidoc)
-    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/api/html/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/dbus/api)
+    install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/api/html/ DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/dbus/api/html)
 endif()
 
 find_program(XSLTPROC_EXECUTABLE xsltproc)
