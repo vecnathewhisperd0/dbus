@@ -1,7 +1,30 @@
 dbus 1.15.12 (UNRELEASED)
 =========================
 
-...
+Enhancements:
+
+• D-Bus Specification 0.43:
+  · Reorganise documentation of the message bus to make it easier to add
+    new interfaces (dbus!472, Simon McVittie)
+  · Document o.fd.DBus.Debug.Stats interface (dbus!472, Simon McVittie)
+  · Document o.fd.DBus.Verbose interface (dbus!472, Simon McVittie)
+  · Formatting improvements (dbus!471, dbus!472; Simon McVittie)
+  · Don't imply that all clients need to support obsolete message bus
+    implementations (dbus!471, Simon McVittie)
+
+Bug fixes:
+
+• When building API documentation with Doxygen, always generate a working
+  link in the index HTML page
+  (dbus#519, dbus!470; Ralf Habacker, Simon McVittie)
+
+• When building with Meson, add (more) test dependencies so that 'meson test'
+  does not always need to be preceded by 'meson compile'
+  (dbus!468, Simon McVittie)
+
+Internal changes:
+
+• CI fixes (dbus!474, Simon McVittie)
 
 dbus 1.15.10 (2024-09-25)
 =========================
@@ -93,6 +116,10 @@ Build-time configuration changes:
   procedure as for a git clone (starting with the `./autogen.sh` script).
 
 Enhancements:
+
+• D-Bus Specification 0.42:
+  · GetConnectionCredentials can return ProcessFD
+    (dbus!420, dbus!398; Luca Boccassi)
 
 • On Linux with sufficiently new glibc and kernel headers, report a pinned
   process file descriptor (pidfd) as the ProcessFD member of the
