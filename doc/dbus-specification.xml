@@ -7513,6 +7513,10 @@
                     same syntactic rules as a
                     <link linkend="message-protocol-names-interface">D-Bus
                       interface name</link>.
+                    Container managers should use the same identifier here
+                    that they use for the
+                    <literal>set_sandbox_engine</literal> request in the
+                    <ulink url="https://gitlab.freedesktop.org/wayland/wayland-protocols/-/tree/main/staging/security-context">Wayland security-context extension</ulink>.
                   </entry>
                 </row>
                 <row>
@@ -7525,6 +7529,10 @@
                     type does not have a concept of identifying or
                     naming its applications or containers by a string,
                     using the empty string here is suggested.
+                    Container managers should use the same identifier here
+                    that they use for the
+                    <literal>set_app_id</literal> request in the
+                    <ulink url="https://gitlab.freedesktop.org/wayland/wayland-protocols/-/tree/main/staging/security-context">Wayland security-context extension</ulink>.
                   </entry>
                 </row>
                 <row>
@@ -7537,6 +7545,10 @@
                     type does not have a concept of identifying or
                     naming instances by a string,
                     using the empty string here is suggested.
+                    Container managers should use the same identifier here
+                    that they use for the
+                    <literal>set_instance_id</literal> request in the
+                    <ulink url="https://gitlab.freedesktop.org/wayland/wayland-protocols/-/tree/main/staging/security-context">Wayland security-context extension</ulink>.
                   </entry>
                 </row>
                 <row>
