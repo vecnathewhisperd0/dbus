@@ -9,7 +9,6 @@ ar = '/usr/bin/i686-w64-mingw32-ar'
 strip = '/usr/bin/i686-w64-mingw32-strip'
 pkgconfig = '/usr/bin/i686-w64-mingw32-pkg-config'
 windres = '/usr/bin/i686-w64-mingw32-windres'
-exe_wrapper = ['xvfb-run', '-a', 'wine']
 ld = '/usr/bin/i686-w64-mingw32-ld'
 cmake = '/usr/bin/cmake'
 
