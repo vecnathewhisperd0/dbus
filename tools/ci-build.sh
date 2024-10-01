@@ -291,7 +291,7 @@ case "$ci_buildsys" in
         export DBUS_TEST_MALLOC_FAILURES=0
 
         meson_setup=
-        cross_file=
+        cross_files=()
 
         # openSUSE has convenience wrappers that run Meson with appropriate
         # cross options
@@ -306,7 +306,12 @@ case "$ci_buildsys" in
 
         case "$ci_host" in
             (*-w64-mingw32)
-                cross_file="${srcdir}/maint/${ci_host}.txt"
+                cross_files=("${cross_files[@]}" "${srcdir}/maint/${ci_host}.txt")
+
+                if [ "$ci_test" = yes ]; then
+                    cross_files=("${cross_files[@]}" "${srcdir}/maint/wine-exe-wrapper.txt")
+                fi
+
                 # openSUSE's wrappers are designed for building predictable
                 # RPM packages, so they set --auto-features=enabled -
                 # but that includes some things that make no sense on
@@ -432,9 +437,9 @@ case "$ci_buildsys" in
         if [ -z "$meson_setup" ] || ! command -v "$meson_setup" >/dev/null; then
             meson_setup="meson setup"
 
-            if [ -n "$cross_file" ]; then
+            for cross_file in "${cross_files[@]}"; do
                 set -- --cross-file="$cross_file" "$@"
-            fi
+            done
         fi
 
         # We assume this when we set LD_LIBRARY_PATH for as-installed

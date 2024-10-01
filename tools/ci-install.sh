@@ -82,11 +82,6 @@ case "$ci_distro" in
         # Don't ask questions, just do it
         sudo="$sudo env DEBIAN_FRONTEND=noninteractive"
 
-        # Debian Docker images use httpredir.debian.org but it seems to be
-        # unreliable; use a CDN instead
-        $sudo sed -i -e 's/httpredir\.debian\.org/deb.debian.org/g' \
-            /etc/apt/sources.list
-
         case "$ci_host" in
             (i686-w64-mingw32)
                 $sudo dpkg --add-architecture i386
@@ -131,7 +126,6 @@ case "$ci_distro" in
             adduser
             ca-certificates
             ccache
-            clang
             cmake
             debhelper
             dh-autoreconf
@@ -168,6 +162,12 @@ case "$ci_distro" in
         )
 
         $sudo apt-get -qq -y --no-install-recommends install "${packages[@]}"
+
+        packages=(
+            clang
+        )
+
+        $sudo apt-get -qq -y install "${packages[@]}"
 
         if [ "$ci_in_docker" = yes ]; then
             # Add the user that we will use to do the build inside the
