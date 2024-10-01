@@ -226,6 +226,8 @@ debian mingw32 cmake:
   when: manual
   variables:
     ci_host: "i686-w64-mingw32"
+    # https://gitlab.freedesktop.org/dbus/dbus/-/issues/509
+    ci_test: "no"
 
 debian mingw32 meson:
   extends:
@@ -233,6 +235,8 @@ debian mingw32 meson:
     - .debian-build
   variables:
     ci_host: "i686-w64-mingw32"
+    # https://gitlab.freedesktop.org/dbus/dbus/-/issues/509
+    ci_test: "no"
 
 debian mingw32 meson debug:
   extends:
@@ -243,6 +247,8 @@ debian mingw32 meson debug:
     ci_buildsys: "meson"
     ci_host: "i686-w64-mingw32"
     ci_variant: "debug"
+    # https://gitlab.freedesktop.org/dbus/dbus/-/issues/509
+    ci_test: "no"
 
 debian mingw64 cmake debug:
   extends:
@@ -253,8 +259,9 @@ debian mingw64 cmake debug:
     ci_buildsys: "cmake"
     ci_host: "x86_64-w64-mingw32"
     ci_variant: "debug"
+    # https://gitlab.freedesktop.org/dbus/dbus/-/issues/509
+    ci_test: "no"
 
-# see https://gitlab.freedesktop.org/dbus/dbus/-/issues/509
 debian mingw64 meson debug:
   extends:
     - .meson-common
@@ -263,6 +270,8 @@ debian mingw64 meson debug:
   variables:
     ci_host: "x86_64-w64-mingw32"
     ci_variant: "debug"
+    # https://gitlab.freedesktop.org/dbus/dbus/-/issues/509
+    ci_test: "no"
 
 opensuse image:
   extends:
