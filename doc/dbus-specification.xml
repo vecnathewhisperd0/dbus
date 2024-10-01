@@ -7470,6 +7470,38 @@
     </sect2>
 
     <sect2 id="message-bus-containers-interface">
+      <title>Containers Interface v1: <literal>org.freedesktop.DBus.Containers1</literal></title>
+      <para>
+        The special message bus name <literal>org.freedesktop.DBus</literal>
+        may optionally implement the
+        <literal>org.freedesktop.DBus.Containers1</literal> interface on
+        the object path <literal>/org/freedesktop/DBus</literal>.
+      </para>
+
+      <para>
+        This interface allows container managers and similar sandboxing
+        mechanisms to ask the message bus to create a special socket
+        for each sandboxed application,
+        which uniquely identifies the application to other message bus
+        clients without introducing race conditions.
+        For this mechanism to be useful, the sandboxed application must be
+        prevented from connecting to the message bus's usual socket.
+        This interface is a D-Bus equivalent of the
+        <ulink url="https://gitlab.freedesktop.org/wayland/wayland-protocols/-/tree/main/staging/security-context">Wayland security-context extension</ulink>.
+      </para>
+
+      <para>
+        As currently implemented, this interface does not apply any
+        special filtering to the D-Bus messages sent and received by a
+        sandboxed application.
+        To limit what a sandboxed application can do on D-Bus, it is
+        likely to be necessary to impose restrictions,
+        perhaps by using a Linux security module such as AppArmor or a
+        filtering proxy such as
+        <ulink url="https://github.com/flatpak/xdg-dbus-proxy/">xdg-dbus-proxy</ulink>.
+        A future version of this specification might add a mechanism for
+        the creator of a confined socket to specify filtering rules.
+      </para>
 
       <sect3 id="bus-messages-containers1-add-server">
         <title><literal>org.freedesktop.DBus.Containers1.AddServer</literal></title>
