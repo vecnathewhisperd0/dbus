@@ -7479,7 +7479,7 @@
       </para>
 
       <sect3 id="bus-messages-containers1-add-server">
-        <title><literal>org.freedesktop.DBus.Containers1.AddServer</literal></title>
+        <title>Method: <literal>org.freedesktop.DBus.Containers1.AddServer</literal></title>
         <para>
           As a method:
           <programlisting>
@@ -7648,7 +7648,7 @@
               </thead>
               <tbody>
                 <row>
-                  <entry>StopOnDisconnect</entry>
+                  <entry><literal>StopOnDisconnect</literal></entry>
                   <entry>BOOLEAN</entry>
                   <entry>true</entry>
                   <entry>
@@ -7664,7 +7664,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>StopOnNotify</entry>
+                  <entry><literal>StopOnNotify</literal></entry>
                   <entry>UNIX_FD</entry>
                   <entry>(none)</entry>
                   <entry>
@@ -7706,7 +7706,7 @@
               </thead>
               <tbody>
                 <row>
-                  <entry>Address</entry>
+                  <entry><literal>Address</literal></entry>
                   <entry>STRING</entry>
                   <entry>
                     A connectable D-Bus address, for example
@@ -7714,7 +7714,7 @@
                   </entry>
                 </row>
                 <row>
-                  <entry>SocketPath</entry>
+                  <entry><literal>SocketPath</literal></entry>
                   <entry>ARRAY of BYTE</entry>
                   <entry>
                     The absolute filesystem path of the resulting
@@ -7770,7 +7770,7 @@
       </sect3>
 
       <sect3 id="bus-messages-containers1-stop-server">
-        <title><literal>org.freedesktop.DBus.Containers1.StopServer</literal></title>
+        <title>Method: <literal>org.freedesktop.DBus.Containers1.StopServer</literal></title>
         <para>
           As a method:
           <programlisting>
@@ -7827,7 +7827,7 @@
       </sect3>
 
       <sect3 id="bus-messages-containers1-stop-listening">
-        <title><literal>org.freedesktop.DBus.Containers1.StopListening</literal></title>
+        <title>Method: <literal>org.freedesktop.DBus.Containers1.StopListening</literal></title>
         <para>
           As a method:
           <programlisting>
@@ -7888,7 +7888,7 @@
       </sect3>
 
       <sect3 id="bus-messages-containers1-get-connection-info">
-        <title><literal>org.freedesktop.DBus.Containers1.GetConnectionInfo</literal></title>
+        <title>Method: <literal>org.freedesktop.DBus.Containers1.GetConnectionInfo</literal></title>
         <para>
           As a method:
           <programlisting>
@@ -8033,7 +8033,7 @@
       </sect3>
 
       <sect3 id="bus-messages-containers1-get-server-info">
-        <title><literal>org.freedesktop.DBus.Containers1.GetServerInfo</literal></title>
+        <title>Method: <literal>org.freedesktop.DBus.Containers1.GetServerInfo</literal></title>
         <para>
           As a method:
           <programlisting>
@@ -8149,7 +8149,7 @@
       </sect3>
 
       <sect3 id="bus-messages-containers1-server-removed">
-        <title><literal>org.freedesktop.DBus.Containers1.ServerRemoved</literal></title>
+        <title>Signal: <literal>org.freedesktop.DBus.Containers1.ServerRemoved</literal></title>
         <para>
           As a signal emitted by the message bus:
           <programlisting>
