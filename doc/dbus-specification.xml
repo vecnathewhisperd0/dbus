@@ -4892,7 +4892,7 @@
         message: they are delivered to the specified receipient,
         regardless of its match rules.  One use for unicast signals is to
         avoid a race condition in which a signal is emitted before the intended
-        recipient can call <xref linkend="bus-messages-add-match"/> to
+        recipient can call <link linkend="bus-messages-add-match">AddMatch</link> to
         receive that signal: if the signal is sent directly to that recipient
         using a unicast message, it does not need to add a match rule at all,
         and there is no race condition.  Another use for unicast signals,
@@ -5529,8 +5529,9 @@
         </para>
 
         <para>
-          Explicit activation via
-          <xref linkend="bus-messages-start-service-by-name"/> is not currently
+          Explicit activation via the
+          <link linkend="bus-messages-start-service-by-name">StartServiceByName</link>
+          method call is not currently
           affected by this mediation: if a confined process is to be prevented
           from starting arbitrary services, then it must not be allowed to call
           that method.
@@ -5862,8 +5863,8 @@
         The special message bus name <literal>org.freedesktop.DBus</literal>
         responds to a number of additional messages at the object path
         <literal>/org/freedesktop/DBus</literal>.
-        That object path is also used when emitting the
-        <xref linkend='bus-messages-name-owner-changed'/> signal.
+        That object path is also used when emitting signals such as
+        <link linkend='bus-messages-name-owner-changed'>NameOwnerChanged</link>.
       </para>
 
       <para>
@@ -5883,8 +5884,11 @@
 
       <para>
         In addition to the method calls listed below, the message bus
-        should implement the standard Introspectable, Properties and Peer
-        interfaces (see <xref linkend="standard-interfaces"/>).
+        should implement the standard
+        <link linkend="standard-interfaces-introspectable">Introspectable</link>,
+        <link linkend="standard-interfaces-peer">Peer</link> and
+        <link linkend="standard-interfaces-properties">Properties</link>
+        interfaces.
         Support for the Properties and Peer interfaces was added in version
         1.11.x of the reference implementation of the message bus.
       </para>
@@ -7037,9 +7041,9 @@
         <para>
           This method was added in D-Bus 1.7 to reduce the round-trips
           required to list a process's credentials. In older versions, calling
-          this method will fail: applications should recover by using the
-          separate methods such as
-          <xref linkend="bus-messages-get-connection-unix-user"/>
+          this method will fail: applications wishing to support obsolete
+          message bus versions can recover by using the separate methods such as
+          <link linkend="bus-messages-get-connection-unix-user">GetConnectionUnixUser</link>
           instead.
         </para>
       </sect3>
@@ -7096,9 +7100,9 @@
           binary format. If you know what this means, please contribute
           documentation via the D-Bus bug tracking system.
           This method is on the core DBus interface for historical reasons;
-          the same information should be made available via
-          <xref linkend="bus-messages-get-connection-credentials"/>
-          in future.
+          the same information should be made available via the
+          <link linkend="bus-messages-get-connection-credentials">GetConnectionCredentials</link>
+          method in future.
         </para>
       </sect3>
 
@@ -7154,9 +7158,9 @@
           format. If you know what this means, please contribute
           documentation via the D-Bus bug tracking system.
           This method is on the core DBus interface for historical reasons;
-          the same information should be made available via
-          <xref linkend="bus-messages-get-connection-credentials"/>
-          in future.
+          the same information should be made available via the
+          <link linkend="bus-messages-get-connection-credentials">GetConnectionCredentials</link>
+          method in future.
         </para>
       </sect3>
 
@@ -7441,7 +7445,7 @@
                 <para>
                   This message bus filters messages via the
                   <ulink url="https://selinuxproject.org/">SELinux</ulink>
-                  security framework. Similar to <literal>apparmor</literal>,
+                  security framework. Similar to <literal>AppArmor</literal>,
                   this feature should only be advertised if SELinux mediation
                   is enabled and active at runtime (if SELinux is placed in
                   permissive mode, that is still considered to be active).
