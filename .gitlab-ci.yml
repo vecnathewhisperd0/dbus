@@ -285,6 +285,7 @@ opensuse cmake:
   variables:
     ci_local_packages: "no"
 
+# TODO: https://gitlab.freedesktop.org/dbus/dbus/-/issues/520
 opensuse mingw32 cmake:
   extends:
     - .cmake-common
