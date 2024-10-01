@@ -8252,7 +8252,12 @@
           monitor connections<footnote>
             <para>
               In the reference implementation,
-              the default configuration is that each user (identified by
+              the default configuration is that connections to a
+              container server managed by
+              <link linkend="message-bus-containers-interface">the
+                Containers1 interface</link>
+              are not privileged and cannot become a monitor;
+              otherwise, each user (identified by
               numeric user ID) may monitor their own session bus,
               and the root user (user ID zero) may monitor the
               system bus.
