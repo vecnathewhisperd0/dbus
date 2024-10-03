@@ -1614,6 +1614,26 @@ _dbus_get_standard_system_servicedirs (DBusList **dirs)
   return TRUE;
 }
 
+
+/**
+ * Returns the local admin directories for a system bus to look for service
+ * activation files
+ *
+ * On UNIX this should be the /etc/ and /run/ directories.
+ *
+ * On Windows there is no system bus and this function can return nothing.
+ *
+ * @param dirs the directory list we are returning
+ * @returns #FALSE on OOM
+ */
+
+dbus_bool_t
+_dbus_get_local_system_servicedirs (DBusList **dirs)
+{
+  *dirs = NULL;
+  return TRUE;
+}
+
 static dbus_bool_t
 _dbus_get_config_file_name (DBusString *str,
                             const char *basename)

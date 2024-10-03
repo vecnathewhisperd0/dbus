@@ -5373,8 +5373,10 @@
         If two .service files in different directories offer the same
         service name, the one in the higher-priority directory is used:
         for instance, on the system bus, .service files in
-        /usr/local/share/dbus-1/system-services take precedence over those
-        in /usr/share/dbus-1/system-services.
+        /etc/dbus-1/system-services takes precedence over those in
+        /run/dbus-1/system-services, which in turn take precedence over
+        those in /usr/local/share/dbus-1/system-services, which in turn take
+        precedence over those in /usr/share/dbus-1/system-services.
       </para>
       <para>
         The executable launched will have the environment variable
@@ -5829,12 +5831,19 @@
         <para>
           On Unix systems, the system bus should default to searching
           for .service files in
+          <literal>/etc/dbus-1/system-services</literal>,
+          <literal>/run/dbus-1/system-services</literal>,
           <literal>/usr/local/share/dbus-1/system-services</literal>,
           <literal>/usr/share/dbus-1/system-services</literal> and
           <literal>/lib/dbus-1/system-services</literal>, with that order
           of precedence. It may also search other implementation-specific
           locations, but should not vary these locations based on environment
           variables.
+          The directory in <literal>/etc/</literal> is reserved for use by
+          either the local system administrator,
+          or an asset manager deploying services that are not part of the OS.
+          The directory in <literal>/run/</literal> is reserved for ephemeral
+          services that will disappear after a reboot.
           <footnote>
             <para>
               The system bus is security-sensitive and is typically executed

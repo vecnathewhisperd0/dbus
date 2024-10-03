@@ -943,6 +943,24 @@ start_busconfig_child (BusConfigParser   *parser,
           return FALSE;
         }
 
+      /* /etc/ and /run/ are a recent addition, so we treat them differently
+       * than the other directories: strict naming is enforced, and we do not
+       * set up an inotify as it might very well not exist until much later at
+       * boot. */
+      if (!_dbus_get_local_system_servicedirs (&dirs))
+        {
+          BUS_SET_OOM (error);
+          return FALSE;
+        }
+
+      if (!service_dirs_absorb_string_list (&parser->service_dirs, &dirs,
+                                            BUS_SERVICE_DIR_FLAGS_NO_WATCH|BUS_SERVICE_DIR_FLAGS_STRICT_NAMING))
+        {
+          BUS_SET_OOM (error);
+          _dbus_list_clear_full (&dirs, dbus_free);
+          return FALSE;
+        }
+
       if (!_dbus_get_standard_system_servicedirs (&dirs))
         {
           BUS_SET_OOM (error);
