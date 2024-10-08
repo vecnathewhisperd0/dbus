@@ -21,6 +21,7 @@
 
 dbus_dependencies = [
     threads,
+    adt_libs,
     network_libs,
     systemd,
     valgrind.partial_dependency(compile_args: true),
