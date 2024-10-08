@@ -568,7 +568,7 @@ endif
 adt_api_check = cc.compiles('''
 #include <bsm/adt.h>
 int main() {
-    adt_user_context = ADT_USER;
+    int adt_user_context = ADT_USER;
     return 0;
 }
 ''', args: compile_args_c)
