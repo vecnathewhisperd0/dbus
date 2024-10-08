@@ -1042,7 +1042,7 @@ AC_SUBST([SELINUX_LIBS])
 AC_MSG_CHECKING(for ADT API)
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <bsm/adt.h>
-adt_user_context = ADT_USER;
+int adt_user_context = ADT_USER;
 ]], [[]])], [ check_adt_audit=yes ], [ check_adt_audit=no ])
 
 if test ${check_adt_audit} = yes
