@@ -910,6 +910,16 @@ main (int argc,
       if (getrlimit (RLIMIT_NOFILE, &lim) < 0)
         g_error ("Failed to get RLIMIT_NOFILE limit: %s", g_strerror (errno));
 
+      if ((lim.rlim_cur != RLIM_INFINITY) && (lim.rlim_cur < lim.rlim_max))
+        {
+          /* Many test require large number of file descriptors,
+           * so max out what they can use */
+          lim.rlim_cur = lim.rlim_max;
+          if (setrlimit (RLIMIT_NOFILE, &lim) < 0)
+            g_error ("Failed to set RLIMIT_NOFILE limit to %ld: %s",
+                     (long) lim.rlim_cur, g_strerror (errno));
+        }
+
       if (lim.rlim_cur != RLIM_INFINITY &&
           /* only run if we have a fairly generous margin of error
            * for stdout, stderr, duplicates, the D-Bus connection, etc. */
