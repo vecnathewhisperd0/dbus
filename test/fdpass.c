@@ -674,9 +674,26 @@ test_flood (Fixture *f,
   unsigned int i, j;
   DBusMessage *outgoing[SOME_MESSAGES];
   dbus_uint32_t serial;
+#ifdef HAVE_GETRLIMIT
+  struct rlimit lim;
+#endif
 
   if (f->skip)
     return;
+
+#ifdef HAVE_GETRLIMIT
+  if (getrlimit (RLIMIT_NOFILE, &lim) == 0)
+    {
+      if (lim.rlim_cur != RLIM_INFINITY &&
+          /* only run if we have a fairly generous margin of error
+           * for stdout, stderr, duplicates, the D-Bus connection, etc. */
+          lim.rlim_cur < 2 * MAX_MESSAGE_UNIX_FDS * SOME_MESSAGES)
+        {
+          g_test_skip ("not enough RLIMIT_NOFILE to run this test");
+          return;
+        }
+    }
+#endif
 
   test_connect (f, TRUE);
 
@@ -918,16 +935,6 @@ main (int argc,
           if (setrlimit (RLIMIT_NOFILE, &lim) < 0)
             g_error ("Failed to set RLIMIT_NOFILE limit to %ld: %s",
                      (long) lim.rlim_cur, g_strerror (errno));
-        }
-
-      if (lim.rlim_cur != RLIM_INFINITY &&
-          /* only run if we have a fairly generous margin of error
-           * for stdout, stderr, duplicates, the D-Bus connection, etc. */
-          lim.rlim_cur < 2 * MAX_MESSAGE_UNIX_FDS * SOME_MESSAGES)
-        {
-          g_message ("not enough RLIMIT_NOFILE to run this test");
-          /* Autotools exit code for "all skipped" */
-          return 77;
         }
     }
 #endif
