@@ -726,6 +726,8 @@ static char test_socket_dir[] = DBUS_TEST_SOCKET_DIR "/dbus-test-XXXXXX";
 static void
 cleanup_test_socket_tempdir (void)
 {
+  if (chdir ("/tmp") != 0)
+    _dbus_test_fatal ("Failed to chdir() to /tmp");
   if (rmdir (test_socket_dir) != 0)
     _dbus_test_not_ok ("failed to remove test socket directory %s",
                        test_socket_dir);
